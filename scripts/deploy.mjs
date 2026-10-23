@@ -19,7 +19,7 @@ if (env === 'production' && !flags.includes('--approved')) {
 
 const branch = `deploy-${env}`;
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: ROOT, stdio: 'inherit', ...opts });
-const git = (args, opts = {}) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', ...opts }).trim();
+const git = (args, opts = {}) => (execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', ...opts }) ?? '').trim();
 
 run(process.execPath, ['scripts/build.mjs', `--env=${env}`]);
 run(process.execPath, ['scripts/check.mjs', `--env=${env}`]);
