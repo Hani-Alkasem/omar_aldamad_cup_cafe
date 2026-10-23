@@ -10,7 +10,7 @@ ErrorDocument 404 /404.html
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
   RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
   RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
-  RewriteRule ^en$ /en/ [L,R=301]
+  RewriteRule ^(en|menu|en/menu)$ /$1/ [L,R=301]
 </IfModule>
 
 # LiteSpeed page cache for HTML (short TTL; hashed assets are cached by the browser)
@@ -35,7 +35,7 @@ AddDefaultCharset utf-8
 </IfModule>
 
 <IfModule mod_headers.c>
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-udFESs5X+sOOXdXaS49ra+eVtelVadl1HY3oteReQpc='; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'sha256-/vQvICGR62EDEDRFiJqk/1Om6AULiCc5e6BALi6vmh0='; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests"
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
