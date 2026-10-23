@@ -114,7 +114,7 @@ const SLOT_SIZES = { hero: 'hero', craft: 'feature', space: 'feature', counter: 
 function picture(slot, lang, sizes, { priority = false } = {}) {
   const alt = i18n[lang].alt[slot];
   const meta = imgManifest.images[slot];
-  if (!meta) return `<div class="photo-missing" role="img" aria-label="${esc(alt ?? slot)}"><span>${esc(slot)}</span></div>`;
+  if (!meta) return `<div class="photo-missing" aria-hidden="true"></div>`;
   if (alt === undefined) console.warn(`build: no ${lang} alt text for photo "${slot}"`);
   const set = (ext) => meta.widths.map((w) => `${img(`${slot}-${w}.${ext}`)} ${w}w`).join(', ');
   const fallbackW = meta.widths[Math.floor((meta.widths.length - 1) / 2)];
@@ -255,6 +255,7 @@ for (const lang of ['ar', 'en']) {
       ogLocale: lang === 'ar' ? 'ar_SY' : 'en_GB',
       paths: { home: urlFor(lang, 'home'), menu: urlFor(lang, 'menu'), alt: urlFor(other, page) },
       current: { home: page === 'home' ? ' aria-current="page"' : '', menu: page === 'menu' ? ' aria-current="page"' : '' },
+      appleIconLink: asset.appleIcon ? `<link rel="apple-touch-icon" href="${asset.appleIcon}">` : '',
       preloads,
       jsonld: jsonLd(lang, t, addressResolved, geoResolved),
       demoBanner: showDemo

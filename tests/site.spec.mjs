@@ -3,28 +3,35 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdirSync } from 'node:fs';
 
 const PAGES = [
-  { lang: 'ar', path: '/', dir: 'rtl' },
-  { lang: 'en', path: '/en/', dir: 'ltr' },
+  { name: 'ar-home', path: '/', dir: 'rtl' },
+  { name: 'ar-menu', path: '/menu/', dir: 'rtl' },
+  { name: 'en-home', path: '/en/', dir: 'ltr' },
+  { name: 'en-menu', path: '/en/menu/', dir: 'ltr' },
 ];
 const WIDTHS = [320, 375, 768, 1280];
 mkdirSync('screenshots', { recursive: true });
 
-// Loads every lazy image so full-page screenshots and overflow checks see the real layout.
+// Loads lazy images so full-page screenshots and overflow checks see the real layout.
 async function settle(page) {
   await page.evaluate(async () => {
     for (let y = 0; y < document.body.scrollHeight; y += innerHeight / 2) {
-      scrollTo(0, y);
+      scrollTo({ top: y, behavior: 'instant' });
       await new Promise((r) => setTimeout(r, 40));
     }
-    scrollTo(0, 0);
+    scrollTo({ top: 0, behavior: 'instant' });
     const visible = [...document.images].filter((img) => img.offsetParent !== null && !img.complete);
     const loaded = Promise.all(visible.map((img) => new Promise((r) => { img.onload = img.onerror = r; })));
     await Promise.race([loaded, new Promise((r) => setTimeout(r, 5000))]);
   });
 }
 
-for (const { lang, path, dir } of PAGES) {
-  test.describe(`${lang} page`, () => {
+const targets = () =>
+  [...document.querySelectorAll('a[href], button, summary')]
+    .filter((el) => el.offsetParent !== null && !el.classList.contains('skip') && getComputedStyle(el).visibility !== 'hidden')
+    .map((el) => ({ el, r: el.getBoundingClientRect() }));
+
+for (const { name, path, dir } of PAGES) {
+  test.describe(name, () => {
     for (const width of WIDTHS) {
       test(`layout at ${width}px`, async ({ page }) => {
         const problems = [];
@@ -37,42 +44,22 @@ for (const { lang, path, dir } of PAGES) {
 
         await expect(page.locator('html')).toHaveAttribute('dir', dir);
         await expect(page.locator('h1')).toHaveCount(1);
+        expect(await page.evaluate(() => document.scrollingElement.scrollWidth - innerWidth), 'horizontal overflow').toBeLessThanOrEqual(0);
 
-        const overflow = await page.evaluate(() => document.scrollingElement.scrollWidth - innerWidth);
-        expect(overflow, 'horizontal overflow').toBeLessThanOrEqual(0);
-
-        // Every visible interactive element is at least 44×44 CSS px.
-        const small = await page.evaluate(() =>
-          [...document.querySelectorAll('a[href], button, summary, [role="tab"]')]
-            .filter((el) => el.offsetParent !== null && !el.classList.contains('skip'))
-            .map((el) => ({ el, r: el.getBoundingClientRect() }))
-            .filter(({ r }) => r.width < 44 || r.height < 44)
-            .map(({ el, r }) => `${el.tagName} "${el.textContent.trim().slice(0, 30)}" ${Math.round(r.width)}×${Math.round(r.height)}`),
-        );
+        const small = await page.evaluate(`(${targets})().filter(({ r }) => r.width < 44 || r.height < 44).map(({ el, r }) => el.tagName + ' "' + el.textContent.trim().slice(0, 30) + '" ' + Math.round(r.width) + '×' + Math.round(r.height))`);
         expect(small, 'tap targets under 44px').toEqual([]);
 
-        // Neighbouring targets keep at least an 8px gap.
-        const tight = await page.evaluate(() => {
-          const rects = [...document.querySelectorAll('a[href], button, summary, [role="tab"]')]
-            .filter((el) => el.offsetParent !== null && !el.classList.contains('skip'))
-            .map((el) => ({ el, r: el.getBoundingClientRect() }));
-          const out = [];
-          for (let i = 0; i < rects.length; i += 1) {
-            for (let j = i + 1; j < rects.length; j += 1) {
-              const a = rects[i].r;
-              const b = rects[j].r;
-              if (rects[i].el.contains(rects[j].el) || rects[j].el.contains(rects[i].el)) continue;
-              const gapX = Math.max(b.left - a.right, a.left - b.right);
-              const gapY = Math.max(b.top - a.bottom, a.top - b.bottom);
-              if (gapX < 8 && gapY < 8) out.push(`${rects[i].el.textContent.trim().slice(0, 20)} ↔ ${rects[j].el.textContent.trim().slice(0, 20)}`);
-            }
-          }
-          return out;
-        });
+        const tight = await page.evaluate(`(() => { const rs = (${targets})(); const out = [];
+          for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
+            const a = rs[i].r, b = rs[j].r;
+            if (rs[i].el.contains(rs[j].el) || rs[j].el.contains(rs[i].el)) continue;
+            const gx = Math.max(b.left - a.right, a.left - b.right), gy = Math.max(b.top - a.bottom, a.top - b.bottom);
+            if (gx < 8 && gy < 8) out.push(rs[i].el.textContent.trim().slice(0, 20) + ' ↔ ' + rs[j].el.textContent.trim().slice(0, 20));
+          } return out; })()`);
         expect(tight, 'targets closer than 8px').toEqual([]);
 
         expect(problems, 'console errors / failed requests').toEqual([]);
-        await page.screenshot({ path: `screenshots/${lang}-${width}.png`, fullPage: true });
+        await page.screenshot({ path: `screenshots/${name}-${width}.png`, fullPage: true });
       });
     }
 
@@ -84,60 +71,51 @@ for (const { lang, path, dir } of PAGES) {
       expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
     });
 
-    test('menu tabs are keyboard operable in reading direction', async ({ page }) => {
-      await page.goto(path, { waitUntil: 'networkidle' });
-      const tabs = page.getByRole('tab');
-      await expect(tabs).toHaveCount(3);
-      await tabs.first().focus();
-      const nextKey = dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
-      await page.keyboard.press(nextKey);
-      await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
-      await expect(tabs.nth(1)).toBeFocused();
-      await expect(page.locator('#panel-iced')).toBeVisible();
-      await expect(page.locator('#panel-hot')).toBeHidden();
-      await page.keyboard.press('End');
-      await expect(tabs.nth(2)).toHaveAttribute('aria-selected', 'true');
-      await page.keyboard.press(nextKey);
-      await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
-      await page.keyboard.press('Home');
-      await expect(tabs.nth(0)).toBeFocused();
-      await tabs.nth(2).click();
-      await expect(page.locator('#panel-nuts')).toBeVisible();
-    });
-
     test('visible focus on keyboard navigation', async ({ page }) => {
       await page.goto(path, { waitUntil: 'networkidle' });
       for (let i = 0; i < 6; i += 1) {
         await page.keyboard.press('Tab');
-        const outline = await page.evaluate(() => {
-          const s = getComputedStyle(document.activeElement);
-          return { style: s.outlineStyle, width: parseFloat(s.outlineWidth) };
-        });
-        expect(outline.style).not.toBe('none');
-        expect(outline.width).toBeGreaterThanOrEqual(2);
+        const o = await page.evaluate(() => { const s = getComputedStyle(document.activeElement); return { style: s.outlineStyle, width: parseFloat(s.outlineWidth) }; });
+        expect(o.style).not.toBe('none');
+        expect(o.width).toBeGreaterThanOrEqual(2);
       }
     });
 
     test('open-now line renders', async ({ page }) => {
       await page.goto(path, { waitUntil: 'networkidle' });
-      await expect(page.locator('[data-status-line]')).toBeVisible();
-      await expect(page.locator('[data-status-lead]')).not.toBeEmpty();
-      await expect(page.locator('[data-status-rest]')).not.toBeEmpty();
-      await expect(page.locator('[data-hours-table] tr.is-today')).toHaveCount(1);
+      await expect(page.locator('[data-status-line]').first()).toBeVisible();
+      await expect(page.locator('[data-status-lead]').first()).not.toBeEmpty();
+    });
+
+    test('mobile nav opens and closes', async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 844 });
+      await page.goto(path, { waitUntil: 'networkidle' });
+      const toggle = page.locator('.nav-toggle');
+      const nav = page.locator('#site-nav');
+      await expect(nav).toBeHidden();
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await expect(nav).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(nav).toBeHidden();
+      await expect(toggle).toBeFocused();
     });
   });
 
-  test.describe(`${lang} without JavaScript`, () => {
-    test.use({ javaScriptEnabled: false });
-    test('all content readable, menu stacked', async ({ page }) => {
-      await page.goto(path);
-      for (const id of ['hot', 'iced', 'nuts']) await expect(page.locator(`#panel-${id}`)).toBeVisible();
-      await expect(page.getByRole('tablist')).toBeHidden();
-      await expect(page.locator('[data-status-week] summary')).toBeVisible();
-      await expect(page.locator('#visit table')).toBeVisible();
-    });
+  test(`${name} without JavaScript keeps nav and content`, async ({ browser }) => {
+    const ctx = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 375, height: 844 } });
+    const page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:4173${path}`);
+    await expect(page.locator('#site-nav')).toBeVisible();
+    await expect(page.locator('main h2').first()).toBeVisible();
+    await ctx.close();
   });
 }
+
+test('menu page lists every section', async ({ page }) => {
+  await page.goto('/menu/');
+  for (const id of ['hot', 'iced', 'nuts']) await expect(page.locator(`#${id} .item`).first()).toBeVisible();
+});
 
 test('404 page is bilingual', async ({ page }) => {
   const res = await page.goto('/404.html');

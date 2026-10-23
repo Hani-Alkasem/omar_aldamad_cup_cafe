@@ -1,5 +1,6 @@
 // Builds, checks and publishes dist/ to a deploy branch that Hostinger auto-deploys.
 // Usage: node scripts/deploy.mjs staging
+//        node scripts/deploy.mjs staging --allow-missing-photos   (layout preview before photos exist)
 //        node scripts/deploy.mjs production --approved
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -21,7 +22,8 @@ const branch = `deploy-${env}`;
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: ROOT, stdio: 'inherit', ...opts });
 const git = (args, opts = {}) => (execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', ...opts }) ?? '').trim();
 
-run(process.execPath, ['scripts/build.mjs', `--env=${env}`]);
+const allowMissing = env === 'staging' && flags.includes('--allow-missing-photos');
+run(process.execPath, ['scripts/build.mjs', `--env=${env}`, ...(allowMissing ? ['--allow-missing-photos'] : [])]);
 run(process.execPath, ['scripts/check.mjs', `--env=${env}`]);
 
 const source = git(['rev-parse', '--short', 'HEAD']);
