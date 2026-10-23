@@ -61,8 +61,9 @@ function nowIn(timeZone) {
   return { day: part('weekday').toLowerCase().slice(0, 3), minutes: Number(part('hour')) * 60 + Number(part('minute')) };
 }
 
-function formatTime(hhmm, locale) {
-  const [h, m] = (hhmm === '23:59' ? '00:00' : hhmm).split(':').map(Number);
+function formatTime(hhmm, locale, midnight) {
+  if (hhmm === '23:59' && midnight) return midnight;
+  const [h, m] = hhmm.split(':').map(Number);
   return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(Date.UTC(2000, 0, 1, h, m));
 }
 
@@ -81,7 +82,7 @@ function initStatus() {
     const isOpen = today && now.minutes >= toMinutes(today[0]) && now.minutes < toMinutes(today[1]);
     let label;
     if (isOpen) {
-      label = el.dataset.open.replace('{time}', formatTime(today[1], locale));
+      label = el.dataset.open.replace('{time}', formatTime(today[1], locale, el.dataset.midnight));
     } else {
       const start = WEEK.indexOf(now.day);
       for (let k = 0; k < 8; k += 1) {

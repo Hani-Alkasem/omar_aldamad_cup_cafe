@@ -50,7 +50,12 @@ const asset = {
 const img = (name) => assetUrls.get(`/assets/img/${name}`);
 const font = (name) => assetUrls.get(`/assets/fonts/${name}.woff2`);
 
-const css = readFileSync(join(SRC, 'css/main.css'), 'utf8')
+const cssSource = readFileSync(join(SRC, 'css/main.css'), 'utf8');
+// RTL guard (CLAUDE.md): layout CSS uses logical properties only.
+const physical = cssSource.split('\n').map((line, i) => [i + 1, line]).filter(([, line]) =>
+  /(^|[\s;{])(margin|padding|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:|text-align:\s*(left|right)|float:\s*(left|right)/.test(line));
+if (physical.length) throw new Error(`Physical left/right in main.css (use logical properties):\n${physical.map(([n, l]) => `  ${n}: ${l.trim()}`).join('\n')}`);
+const css = cssSource
   .replace(/\/assets\/fonts\/[\w.-]+\.woff2/g, (m) => assetUrls.get(m) ?? m)
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/\s*\n\s*/g, '\n')
@@ -75,16 +80,17 @@ const DAYS = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'];
 const hours = Object.fromEntries(DAYS.map((d) => [d, config.hours[d] ?? null]));
 const numberFmt = (locale) => new Intl.NumberFormat(locale);
 const toLocaleDigits = (s, locale) => s.replace(/\d/g, (d) => numberFmt(locale).format(Number(d)));
-function timeFmt(hhmm, locale) {
-  const [h, m] = (hhmm === '23:59' ? '00:00' : hhmm).split(':').map(Number);
+function timeFmt(hhmm, locale, midnight) {
+  if (hhmm === '23:59' && midnight) return midnight;
+  const [h, m] = hhmm.split(':').map(Number);
   return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(Date.UTC(2000, 0, 1, h, m));
 }
-const range = (d, locale) => (hours[d] ? `${timeFmt(hours[d][0], locale)} – ${timeFmt(hours[d][1], locale)}` : null);
+const range = (d, t) => (hours[d] ? `${timeFmt(hours[d][0], t.locale)} – ${timeFmt(hours[d][1], t.locale, t.status.midnight)}` : null);
 
 function hoursSummary(t) {
   const groups = [];
   for (const d of DAYS) {
-    const r = range(d, t.locale);
+    const r = range(d, t);
     const last = groups.at(-1);
     if (last && last.r === r) last.days.push(d);
     else groups.push({ r, days: [d] });
@@ -104,7 +110,8 @@ function picture(slug, alt, sizes, { priority = false } = {}) {
   return `<picture><source type="image/avif" srcset="${set('avif')}" sizes="${sizes}"><source type="image/webp" srcset="${set('webp')}" sizes="${sizes}"><img src="${img(`${slug}-${fallbackW}.jpg`)}" srcset="${set('jpg')}" sizes="${sizes}" width="${fallbackW}" height="${h}" alt="${esc(alt)}" ${loading}></picture>`;
 }
 const HERO_SIZES = '(min-width: 64rem) 36rem, (min-width: 48rem) 100vw, 1px';
-const GALLERY_SIZES = '(min-width: 64rem) 24rem, (min-width: 40rem) 46vw, 100vw';
+const GALLERY_SIZES = '(min-width: 64rem) 24rem, (min-width: 48rem) 46vw, 48vw';
+const LEAD_SIZES = '100vw';
 const GALLERY = ['entrance', 'seating', 'featureWall', 'bar', 'mural', 'counter', 'service'];
 const slugOf = Object.fromEntries(Object.entries(imgManifest.images).map(([slug, m]) => [m.zone, slug]));
 
@@ -189,11 +196,11 @@ for (const lang of ['ar', 'en']) {
 
   const galleryItems = GALLERY.map((zone) => {
     const z = t.gallery.zones[zone];
-    return `<li${zone === 'entrance' ? ' class="is-mobile-only"' : ''}><figure class="frame">${picture(slugOf[zone], z.alt, GALLERY_SIZES)}<figcaption><span class="frame-caption">${esc(z.caption)}</span> <span class="concept-tag">${esc(t.gallery.concept)}</span></figcaption></figure></li>`;
+    return `<li${zone === 'entrance' ? ' class="is-mobile-only"' : ''}><figure class="frame">${picture(slugOf[zone], z.alt, zone === 'entrance' ? LEAD_SIZES : GALLERY_SIZES)}<figcaption><span class="frame-caption">${esc(z.caption)}</span> <span class="concept-tag">${esc(t.gallery.concept)}</span></figcaption></figure></li>`;
   }).join('\n');
 
-  const hoursRows = DAYS.map((d) => `<tr data-day="${d}"><th scope="row">${esc(t.days[d])}</th><td>${range(d, t.locale) ? `<bdi>${esc(range(d, t.locale))}</bdi>` : '—'}</td></tr>`).join('\n');
-  const hoursList = `<dl class="week">${DAYS.map((d) => `<div><dt>${esc(t.days[d])}</dt><dd><bdi>${esc(range(d, t.locale) ?? '—')}</bdi></dd></div>`).join('')}</dl>`;
+  const hoursRows = DAYS.map((d) => `<tr data-day="${d}"><th scope="row">${esc(t.days[d])}</th><td>${range(d, t) ? `<bdi>${esc(range(d, t))}</bdi>` : '—'}</td></tr>`).join('\n');
+  const hoursList = `<dl class="week">${DAYS.map((d) => `<div><dt>${esc(t.days[d])}</dt><dd><bdi>${esc(range(d, t) ?? '—')}</bdi></dd></div>`).join('')}</dl>`;
 
   const heroSet = (ext) => imgManifest.images.entrance.widths.map((w) => `${img(`entrance-${w}.${ext}`)} ${w}w`).join(', ');
   const preloads = [

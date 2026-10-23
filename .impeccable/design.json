@@ -1,0 +1,267 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-23T09:26:49.091441Z",
+  "title": "Design System: كُوب – Kub Coffee",
+  "extensions": {
+    "colorMeta": {
+      "espresso": {
+        "role": "secondary",
+        "displayName": "Espresso",
+        "canonical": "#3A2A1F",
+        "tonalRamp": [
+          "#32241B",
+          "#533C2C",
+          "#74543E",
+          "#966C50",
+          "#B8937A",
+          "#CDB4A2",
+          "#E3D4CA",
+          "#F6F2EE"
+        ]
+      },
+      "cream": {
+        "role": "neutral",
+        "displayName": "Cream Wall",
+        "canonical": "#E6DCC3",
+        "tonalRamp": [
+          "#362D16",
+          "#5A4B25",
+          "#7E6934",
+          "#A28743",
+          "#C3AB6F",
+          "#D5C49A",
+          "#E7DDC5",
+          "#F8F4ED"
+        ]
+      },
+      "olive": {
+        "role": "primary",
+        "displayName": "Olive Bench",
+        "canonical": "#4B5130",
+        "tonalRamp": [
+          "#2C301C",
+          "#4A502F",
+          "#687042",
+          "#859055",
+          "#AAB37F",
+          "#C3CAA5",
+          "#DDE1CC",
+          "#F4F6EF"
+        ]
+      },
+      "oak": {
+        "role": "tertiary",
+        "displayName": "Oak",
+        "canonical": "#A9773F",
+        "tonalRamp": [
+          "#382715",
+          "#5D4123",
+          "#825C30",
+          "#A7763E",
+          "#C89C6A",
+          "#D8B997",
+          "#E9D7C4",
+          "#F8F3EC"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#111111",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#999999",
+          "#B8B8B8",
+          "#D6D6D6",
+          "#F2F2F2"
+        ]
+      },
+      "leaf": {
+        "role": "accent",
+        "displayName": "Leaf (open dot)",
+        "canonical": "#9DB86B",
+        "tonalRamp": [
+          "#2A3419",
+          "#465629",
+          "#63793A",
+          "#7F9B4A",
+          "#A4BD75",
+          "#BFD19E",
+          "#DAE5C8",
+          "#F4F7EE"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The Arabic name كُوب in the h1 only."
+      },
+      "heading": {
+        "displayName": "Heading",
+        "purpose": "Section h2s."
+      },
+      "subheading": {
+        "displayName": "Subheading",
+        "purpose": "Board titles, h3s, tagline."
+      },
+      "body": {
+        "displayName": "Body (Arabic)",
+        "purpose": "Running text on /."
+      },
+      "body-latin": {
+        "displayName": "Body (Latin)",
+        "purpose": "Running text on /en/ and Latin runs."
+      },
+      "small": {
+        "displayName": "Small",
+        "purpose": "Secondary names, currency, tags."
+      }
+    },
+    "shadows": [
+      {
+        "name": "board-hang",
+        "value": "0 1.25rem 2.5rem -1rem rgb(0 0 0 / 0.55)",
+        "purpose": "Menu boards hanging on the espresso wall."
+      },
+      {
+        "name": "lamp-glow",
+        "value": "oak ellipse, filter: blur(18px), opacity 0.6",
+        "purpose": "Selected pendant lamp light."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "All state transitions."
+      },
+      {
+        "name": "board-in",
+        "value": "220ms opacity + 0.35rem rise",
+        "purpose": "Menu board swap."
+      },
+      {
+        "name": "lamp",
+        "value": "250ms opacity",
+        "purpose": "Lamp bulb and glow."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "md",
+        "value": "48rem"
+      },
+      {
+        "name": "lg",
+        "value": "64rem"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action on light fields (View menu).",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">شوف القائمة</a>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;min-height:3rem;padding:.55rem 1.35rem;border-radius:.75rem;background:var(--olive,#4B5130);color:var(--cream,#E6DCC3);font-weight:700;text-decoration:none;border:2px solid transparent;transition:background-color .18s cubic-bezier(.16,1,.3,1)}.ds-btn-primary:hover{background:color-mix(in srgb,#4B5130 78%,#111)}.ds-btn-primary:focus-visible{outline:3px solid #4B5130;outline-offset:3px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Outline action on light fields (Get directions).",
+      "html": "<a class=\"ds-btn-secondary\" href=\"#\">Get directions</a>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;min-height:3rem;padding:.55rem 1.35rem;border-radius:.75rem;border:2px solid #3A2A1F;color:#3A2A1F;font-weight:700;text-decoration:none;transition:background-color .18s,color .18s}.ds-btn-secondary:hover{background:#3A2A1F;color:#E6DCC3}.ds-btn-secondary:focus-visible{outline:3px solid #4B5130;outline-offset:3px}"
+    },
+    {
+      "name": "Light Button",
+      "kind": "button",
+      "refersTo": "button-light",
+      "description": "Action on olive/espresso fields.",
+      "html": "<a class=\"ds-btn-light\" href=\"#\">Call us</a>",
+      "css": ".ds-btn-light{display:inline-flex;align-items:center;min-height:3rem;padding:.55rem 1.35rem;border-radius:.75rem;background:#E6DCC3;color:#3A2A1F;font-weight:700;text-decoration:none}.ds-btn-light:hover{background:color-mix(in srgb,#E6DCC3 85%,#111)}.ds-btn-light:focus-visible{outline:3px solid #E6DCC3;outline-offset:3px}"
+    },
+    {
+      "name": "Status Pill",
+      "kind": "chip",
+      "refersTo": "status-pill",
+      "description": "Open-now badge in the hero.",
+      "html": "<p class=\"ds-status\"><span class=\"ds-dot\"></span>Open now · until 23:00</p>",
+      "css": ".ds-status{display:inline-flex;align-items:center;gap:.55rem;padding:.35rem .95rem;border-radius:999px;background:#3A2A1F;color:#E6DCC3;font-weight:700;margin:0}.ds-dot{width:.6rem;height:.6rem;border-radius:50%;background:#9DB86B}"
+    },
+    {
+      "name": "Concept Tag",
+      "kind": "chip",
+      "refersTo": "concept-tag",
+      "description": "Labels every CGI render.",
+      "html": "<span class=\"ds-tag\">Concept</span>",
+      "css": ".ds-tag{display:inline-block;padding:.1rem .6rem;border-radius:999px;background:#111;color:#E6DCC3;font-size:.9rem;line-height:1.6}"
+    },
+    {
+      "name": "Menu Board",
+      "kind": "custom",
+      "refersTo": "menu-board",
+      "description": "Black board with item rows; the signature menu panel.",
+      "html": "<section class=\"ds-board\"><h3>Hot Drinks</h3><div class=\"ds-item\"><span>Espresso</span><b>150 <small>SYP</small></b></div><div class=\"ds-item\"><span>Latte</span><b>260 <small>SYP</small></b></div></section>",
+      "css": ".ds-board{background:#111;color:#E6DCC3;padding:1.5rem 2.25rem 2.25rem;border:.4rem solid color-mix(in srgb,#3A2A1F 55%,#111);border-radius:.35rem;box-shadow:0 1.25rem 2.5rem -1rem rgb(0 0 0/.55)}.ds-board h3{margin:0 0 .5rem;padding-bottom:.75rem;border-bottom:2px solid #A9773F;font-size:1.6rem}.ds-item{display:flex;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid color-mix(in srgb,#E6DCC3 22%,#111);font-variant-numeric:tabular-nums}.ds-item small{font-weight:400;opacity:.85}"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "Header section links plus language pill.",
+      "html": "<nav class=\"ds-nav\"><a href=\"#\">Menu</a><a href=\"#\">The space</a><a href=\"#\">Visit</a><a class=\"ds-lang\" href=\"#\">العربية</a></nav>",
+      "css": ".ds-nav{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;color:#3A2A1F}.ds-nav a{display:inline-flex;align-items:center;min-height:2.75rem;padding:0 .75rem;color:inherit;text-decoration:none}.ds-nav a:hover{text-decoration:underline}.ds-nav .ds-lang{border:2px solid #3A2A1F;border-radius:999px;font-weight:700}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The café's own wall",
+    "overview": "The site is built from the room, not from a café template. Cream plaster is the ground. An oak shelf carries a row of black line-art baristas, and a full-width olive bench band sits under them, the way the mural and banquette sit in the renders. The menu hangs as black boards under dome pendant lamps on an espresso-brown wall. Colour arrives as whole fields: a cream wall, an espresso wall, an olive bench. It never appears as scattered accents.\n\nArabic comes first and is never a translation layer. Every layout rule is written in logical properties so the same wall reads correctly in both directions. The voice is warm and neighbourly. Nothing on the page claims more than the café has confirmed.",
+    "keyCharacteristics": [
+      "Committed colour fields per section: cream → olive bench → espresso → cream → olive → espresso.",
+      "Stroke-only black line art (round caps, about 2px, non-scaling) for the mural and plaques.",
+      "Large, quiet Arabic display type; Latin is the companion, not the lead.",
+      "Real interior renders, always labelled \"Concept / تصوّر\"."
+    ],
+    "rules": [
+      {
+        "name": "The Whole-Field Rule",
+        "body": "A section owns one ground colour from end to end. Accents never float on a neutral template.",
+        "section": "colors"
+      },
+      {
+        "name": "The Oak-Is-Wood Rule",
+        "body": "Oak marks wood and light (shelves, rules, glow). It is never text.",
+        "section": "colors"
+      },
+      {
+        "name": "The No-Tracking-On-Arabic Rule",
+        "body": "Never set letter-spacing on Arabic text; it breaks the joins. Latin headings may take −0.015em.",
+        "section": "typography"
+      },
+      {
+        "name": "The Weight-Budget Rule",
+        "body": "On /, Latin runs stay at 400 so Inter 600 is never fetched. On /en/, Arabic runs stay at 700 so only one Arabic face loads. This keeps fonts ≤ 120 KB per page.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "**Do** give each section one whole colour field from the palette.",
+      "**Do** label every render \"Concept / تصوّر\" until real photos replace it.",
+      "**Do** wrap mixed-direction runs (English names, prices, phone numbers) in `<bdi>` or `dir=\"ltr\"`.",
+      "**Do** keep all business facts in `site.config.json`, and flag sample data `\"demo\": true`."
+    ],
+    "donts": [
+      "**Don't** use the presentation deck's teal (`#3AEFCC`); it belongs to the PowerPoint template, not the café.",
+      "**Don't** put oak behind or as text.",
+      "**Don't** add kickers or eyebrows above headings, glyph or emoji icons, gradient text, or glass.",
+      "**Don't** mirror the line art, the logo or the coffee-cup favicon in RTL.",
+      "**Don't** invent claims such as awards, ratings, reviews or \"best in Daraa\"."
+    ]
+  }
+}

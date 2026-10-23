@@ -1,7 +1,7 @@
 // Extracts the interior renders from "COFFE CUP.pdf" and writes responsive AVIF/WebP/JPEG sets
 // plus the Open Graph image and app icons. Output: src/assets/img/ + src/assets/img/manifest.json
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -59,6 +59,24 @@ try {
   await sharp(icon, { density: 600 }).resize(512, 512).png().toFile(join(OUT, 'icon-512.png'));
 
   writeFileSync(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+
+  // Provenance: embed each raster's origin with Impeccable's embed-prompt when the launcher is available.
+  const launcher = join(ROOT, '.claude/skills/impeccable/scripts/impeccable');
+  if (existsSync(launcher)) {
+    const originOf = (name) => {
+      const slug = Object.keys(manifest.images).find((s) => name.startsWith(`${s}-`));
+      if (slug) return `Origin: ${manifest.images[slug].origin} (3D interior render by Omar Al Masalmeh), resized by scripts/images.mjs. Not a photograph.`;
+      if (name === 'og.jpg') return 'Origin: COFFE CUP.pdf, image 002-000 (entrance render), cropped to 1200x630 by scripts/images.mjs.';
+      return 'Origin: rendered from src/assets/favicon.svg (authored for this site) by scripts/images.mjs.';
+    };
+    try {
+      for (const name of readdirSync(OUT).filter((f) => f !== 'manifest.json')) {
+        execFileSync(launcher, ['embed-prompt', join(OUT, name), '--prompt', originOf(name)], { stdio: 'ignore' });
+      }
+    } catch (err) {
+      console.warn(`images: provenance not embedded (${err.message.split('\n')[0]})`);
+    }
+  }
   console.log(`images: ${RENDERS.length} renders → ${OUT}`);
 } finally {
   rmSync(tmp, { recursive: true, force: true });

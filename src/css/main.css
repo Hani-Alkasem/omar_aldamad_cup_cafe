@@ -121,7 +121,7 @@ html[lang="en"] .btn { font-weight: 600; }
 .site-header { padding-block: var(--space-2); }
 .header-row {
   display: grid; grid-template-columns: 1fr auto; grid-template-areas: "mark lang" "nav nav";
-  align-items: center; column-gap: var(--space-3);
+  align-items: center; column-gap: var(--space-3); row-gap: var(--space-1);
 }
 .wordmark { grid-area: mark; display: inline-flex; align-items: baseline; gap: 0.5rem; justify-self: start; min-block-size: 2.75rem; text-decoration: none; }
 .wordmark-ar { font-family: "IBM Plex Sans Arabic", var(--font); font-weight: 700; font-size: 1.75rem; line-height: 1.4; }
@@ -172,7 +172,7 @@ html[lang="en"] .status-pill { font-weight: 600; }
 .hero-window .concept-tag { position: absolute; inset-block-end: 1.2rem; inset-inline-start: 1.2rem; }
 
 .mural { color: var(--ink); margin-block-start: var(--space-4); overflow: hidden; }
-.mural-art { inline-size: 100%; block-size: clamp(8.5rem, 7rem + 3vw, 10rem); }
+.mural-art { inline-size: 100%; block-size: clamp(8.5rem, 15vw, 18rem); }
 .mural-art g, .mural-art path { vector-effect: non-scaling-stroke; }
 .mural-shelf { stroke: var(--oak); stroke-width: 5; }
 .bench { block-size: clamp(2.5rem, 1.6rem + 3vw, 4rem); background: var(--olive); border-block-start: 0.6rem solid var(--olive-deep); }
@@ -191,17 +191,17 @@ html[lang="en"] .status-pill { font-weight: 600; }
   border: 0; background: transparent; color: var(--on-dark-soft); font: inherit; font-weight: 700; cursor: pointer;
 }
 html[lang="en"] [role="tab"] { font-weight: 600; }
-[role="tab"] .lamp { inline-size: 3.25rem; block-size: auto; color: var(--ink); overflow: visible; }
+[role="tab"] .lamp { inline-size: clamp(3.75rem, 3rem + 2vw, 5rem); block-size: auto; color: var(--ink); overflow: visible; }
 .lamp-bulb { fill: var(--cream); opacity: 0.25; transition: opacity 250ms var(--ease-out); }
 [role="tab"]::before {
-  content: ""; position: absolute; inset-block-start: 2.6rem; inset-inline-start: 50%; translate: -50% 0;
-  inline-size: 5rem; block-size: 4rem; border-radius: 50%;
+  content: ""; position: absolute; inset-block-start: 3.4rem; inset-inline-start: 50%; translate: -50% 0;
+  inline-size: 6.5rem; block-size: 5rem; border-radius: 50%;
   background: var(--oak); filter: blur(18px); opacity: 0; transition: opacity 250ms var(--ease-out); pointer-events: none;
 }
 [dir="rtl"] [role="tab"]::before { translate: 50% 0; }
 [role="tab"][aria-selected="true"] { color: var(--cream); }
 [role="tab"][aria-selected="true"] .lamp-bulb { opacity: 1; }
-[role="tab"][aria-selected="true"]::before { opacity: 0.45; }
+[role="tab"][aria-selected="true"]::before { opacity: 0.6; }
 [role="tab"]:hover { color: var(--cream); }
 .tab-label { position: relative; border-block-end: 2px solid transparent; padding-block-end: 0.1rem; }
 [role="tab"][aria-selected="true"] .tab-label { border-color: var(--oak); }
@@ -253,11 +253,14 @@ html[lang="en"] .price { font-weight: 600; }
 
 /* ── Gallery: framed renders on the wall ── */
 .gallery { padding-block: var(--space-5) var(--space-6); }
-.frames { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
+.frames { display: grid; gap: var(--space-4) var(--space-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.frames .is-mobile-only { grid-column: 1 / -1; }
+@media (min-width: 48rem) { .frames { gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); } }
 .frame { margin: 0; display: grid; gap: var(--space-2); }
 .frame picture { padding: 0.45rem; background: var(--ink); border-radius: 0.3rem; }
 .frame img { inline-size: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 0.15rem; }
-.frame figcaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; font-weight: 700; }
+.frame figcaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.5rem; font-weight: 700; font-size: var(--step--1); }
+@media (min-width: 48rem) { .frame figcaption { font-size: var(--step-0); } }
 html[lang="en"] .frame figcaption { font-weight: 600; }
 .frame .concept-tag { font-weight: 400; }
 
@@ -271,7 +274,7 @@ html[lang="en"] .frame figcaption { font-weight: 600; }
 .hours { inline-size: 100%; border-collapse: collapse; font-size: var(--step-0); }
 .hours caption { text-align: start; font-size: var(--step-1); font-weight: 700; padding-block-end: var(--space-2); }
 .hours th, .hours td { text-align: start; padding: 0.7rem 0.75rem; border-block-end: 1px solid color-mix(in srgb, var(--cream) 30%, var(--olive)); }
-.hours thead th { font-size: var(--step--1); font-weight: 400; color: var(--on-dark-soft); }
+.hours thead th { font-size: var(--step--1); font-weight: 400; color: var(--on-dark); }
 .hours tbody th { font-weight: 400; }
 .hours tr.is-today { background: color-mix(in srgb, var(--ink) 30%, var(--olive)); }
 .hours tr.is-today th { font-weight: 700; }

@@ -24,7 +24,8 @@
     "openUntil": "Open now · until {time}",
     "closedOpens": "Closed · opens {day} at {time}",
     "today": "today",
-    "tomorrow": "tomorrow"
+    "tomorrow": "tomorrow",
+    "midnight": "midnight"
   },
   "days": {
     "sat": "Saturday",

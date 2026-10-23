@@ -24,7 +24,8 @@
     "openUntil": "مفتوح الآن · حتى {time}",
     "closedOpens": "مغلق الآن · نفتح {day} الساعة {time}",
     "today": "اليوم",
-    "tomorrow": "غداً"
+    "tomorrow": "غداً",
+    "midnight": "منتصف الليل"
   },
   "days": {
     "sat": "السبت",
