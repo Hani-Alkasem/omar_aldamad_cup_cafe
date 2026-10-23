@@ -34,9 +34,19 @@ Reference components to `var(--token)`, never raw hex. A dark theme, if added, m
 ### Typography
 
 - Arabic: **IBM Plex Sans Arabic** (fallback: Tajawal). Latin: **Inter**.
+- Hand-lettered notes: **Aref Ruqaa** 400, for one-line asides only (the tagline, section notes, the footer sign-off). Never use it for headings, menu items, prices, hours or buttons. The build subsets it to the characters used, with `pyftsubset` (`pip install fonttools brotli`); without that tool it ships the full file.
 - Self-host `woff2` subsets, `font-display: swap`, preload only the weights the hero uses.
 - Body ≥ 16px, line-height ≥ 1.6 for Arabic (taller ascenders and descenders than Latin).
 - Never set `letter-spacing` on Arabic text. It breaks the joins between letters.
+- Font budget: about 139 KB on `/` and 97 KB on `/en/`. Check the weight budget in DESIGN.md before adding a weight.
+
+## Voice and the "made by people" rule
+
+- Write the way people in Daraa speak: short, warm and colloquial ("مفتوحين هلّق، لـ ١١ بالليل", "تعا لعنّا"). English stays plain and casual.
+- Say times as spoken: "٨ الصبح", "٢ الظهر", "نص الليل" / "8am", "midnight". Use `src/js/time.js`.
+- Don't use em dashes in copy, grey lede paragraphs under every heading, or slogans like "in the heart of".
+- Don't use pills, badges or chips; one solid button per area, and text links for everything else.
+- Use the café's own material first. The first viewport is the real hand-drawn mural, cut out of the renders by `scripts/images.mjs`. Never replace it with redrawn vector clip-art or generated illustrations.
 
 ## RTL and bilingual rules
 

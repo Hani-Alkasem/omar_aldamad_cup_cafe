@@ -1,4 +1,5 @@
 // Progressive enhancement only: every section is readable without this file.
+import { spokenTime } from './time.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -51,7 +52,7 @@ function initTabs() {
   select(0);
 }
 
-// Open-now badge, computed in the café's time zone rather than the visitor's.
+// Open-now line, computed in the café's time zone rather than the visitor's.
 const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const toMinutes = (hhmm) => (hhmm === '23:59' ? 1440 : Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3)));
 
@@ -61,28 +62,23 @@ function nowIn(timeZone) {
   return { day: part('weekday').toLowerCase().slice(0, 3), minutes: Number(part('hour')) * 60 + Number(part('minute')) };
 }
 
-function formatTime(hhmm, locale, midnight) {
-  if (hhmm === '23:59' && midnight) return midnight;
-  const [h, m] = hhmm.split(':').map(Number);
-  return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(Date.UTC(2000, 0, 1, h, m));
-}
-
 function initStatus() {
   const el = $('[data-status]');
   if (!el) return;
   const hours = JSON.parse(el.dataset.hours);
   const days = JSON.parse(el.dataset.days);
-  const { locale, tz } = el.dataset;
-  const pill = $('[data-status-pill]', el);
-  const text = $('[data-status-text]', el);
+  const { lang, tz } = el.dataset;
+  const line = $('[data-status-line]', el);
 
   const update = () => {
     const now = nowIn(tz);
     const today = hours[now.day];
-    const isOpen = today && now.minutes >= toMinutes(today[0]) && now.minutes < toMinutes(today[1]);
-    let label;
+    const isOpen = Boolean(today && now.minutes >= toMinutes(today[0]) && now.minutes < toMinutes(today[1]));
+    let lead;
+    let rest;
     if (isOpen) {
-      label = el.dataset.open.replace('{time}', formatTime(today[1], locale, el.dataset.midnight));
+      lead = el.dataset.openLead;
+      rest = el.dataset.openRest.replace('{time}', spokenTime(today[1], lang));
     } else {
       const start = WEEK.indexOf(now.day);
       for (let k = 0; k < 8; k += 1) {
@@ -90,14 +86,16 @@ function initStatus() {
         const slot = hours[day];
         if (!slot || (k === 0 && now.minutes >= toMinutes(slot[0]))) continue;
         const when = k === 0 ? el.dataset.today : k === 1 ? el.dataset.tomorrow : days[day];
-        label = el.dataset.closed.replace('{day}', when).replace('{time}', formatTime(slot[0], locale));
+        lead = el.dataset.closedLead;
+        rest = el.dataset.closedRest.replace('{day}', when).replace('{time}', spokenTime(slot[0], lang));
         break;
       }
     }
-    if (!label) return;
-    text.textContent = label;
-    pill.classList.toggle('is-open', Boolean(isOpen));
-    pill.hidden = false;
+    if (!lead) return;
+    $('[data-status-lead]', line).textContent = lead;
+    $('[data-status-rest]', line).textContent = rest;
+    line.classList.toggle('is-open', isOpen);
+    line.hidden = false;
     $('[data-status-week]', el).hidden = true;
 
     $$('[data-hours-table] tr[data-day]').forEach((row) => {

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-23T09:26:49.091441Z",
+  "generatedAt": "2026-10-23T10:15:00.757468+00:00",
   "title": "Design System: كُوب – Kub Coffee",
   "extensions": {
     "colorMeta": {
@@ -79,19 +79,79 @@
           "#F2F2F2"
         ]
       },
-      "leaf": {
-        "role": "accent",
-        "displayName": "Leaf (open dot)",
-        "canonical": "#9DB86B",
+      "wall-shade": {
+        "role": "neutral",
+        "displayName": "Wall Shade",
+        "canonical": "#CEC3AC",
         "tonalRamp": [
-          "#2A3419",
-          "#465629",
-          "#63793A",
-          "#7F9B4A",
-          "#A4BD75",
-          "#BFD19E",
-          "#DAE5C8",
-          "#F4F7EE"
+          "#302A1C",
+          "#50462F",
+          "#706142",
+          "#907D55",
+          "#B3A27F",
+          "#CABEA5",
+          "#E1DACC",
+          "#F6F3EF"
+        ]
+      },
+      "text-soft": {
+        "role": "neutral",
+        "displayName": "Text Soft",
+        "canonical": "#564639",
+        "tonalRamp": [
+          "#2E251E",
+          "#4D3E33",
+          "#6B5747",
+          "#8A705B",
+          "#AE9784",
+          "#C6B6A9",
+          "#DED5CE",
+          "#F5F2F0"
+        ]
+      },
+      "on-dark-soft": {
+        "role": "neutral",
+        "displayName": "On-dark Soft",
+        "canonical": "#CAC0A9",
+        "tonalRamp": [
+          "#2F2A1D",
+          "#4F4631",
+          "#6E6244",
+          "#8E7D58",
+          "#B1A381",
+          "#C9BEA7",
+          "#E0DACD",
+          "#F5F3EF"
+        ]
+      },
+      "oak-chalk": {
+        "role": "tertiary",
+        "displayName": "Oak Chalk",
+        "canonical": "#C4A47A",
+        "tonalRamp": [
+          "#352818",
+          "#584327",
+          "#7C5E37",
+          "#9F7947",
+          "#C09E72",
+          "#D3BB9C",
+          "#E6D8C6",
+          "#F7F3ED"
+        ]
+      },
+      "board-frame": {
+        "role": "neutral",
+        "displayName": "Board Frame",
+        "canonical": "#281F19",
+        "tonalRamp": [
+          "#2F241D",
+          "#4E3D31",
+          "#6E5545",
+          "#8D6D58",
+          "#B19481",
+          "#C8B4A7",
+          "#E0D4CD",
+          "#F5F2EF"
         ]
       }
     },
@@ -119,6 +179,14 @@
       "small": {
         "displayName": "Small",
         "purpose": "Secondary names, currency, tags."
+      },
+      "hand": {
+        "displayName": "Hand (Ruqaa)",
+        "purpose": "Short scribbled asides only: section notes, footer sign-off."
+      },
+      "hand-large": {
+        "displayName": "Hand large",
+        "purpose": "The tagline under the name."
       }
     },
     "shadows": [
@@ -168,15 +236,7 @@
       "refersTo": "button-primary",
       "description": "Main action on light fields (View menu).",
       "html": "<a class=\"ds-btn-primary\" href=\"#\">شوف القائمة</a>",
-      "css": ".ds-btn-primary{display:inline-flex;align-items:center;min-height:3rem;padding:.55rem 1.35rem;border-radius:.75rem;background:var(--olive,#4B5130);color:var(--cream,#E6DCC3);font-weight:700;text-decoration:none;border:2px solid transparent;transition:background-color .18s cubic-bezier(.16,1,.3,1)}.ds-btn-primary:hover{background:color-mix(in srgb,#4B5130 78%,#111)}.ds-btn-primary:focus-visible{outline:3px solid #4B5130;outline-offset:3px}"
-    },
-    {
-      "name": "Secondary Button",
-      "kind": "button",
-      "refersTo": "button-secondary",
-      "description": "Outline action on light fields (Get directions).",
-      "html": "<a class=\"ds-btn-secondary\" href=\"#\">Get directions</a>",
-      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;min-height:3rem;padding:.55rem 1.35rem;border-radius:.75rem;border:2px solid #3A2A1F;color:#3A2A1F;font-weight:700;text-decoration:none;transition:background-color .18s,color .18s}.ds-btn-secondary:hover{background:#3A2A1F;color:#E6DCC3}.ds-btn-secondary:focus-visible{outline:3px solid #4B5130;outline-offset:3px}"
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;min-height:3rem;padding:.55rem 1.35rem;border-radius:.3rem;background:var(--olive,#4B5130);color:var(--cream,#E6DCC3);font-weight:700;text-decoration:none;border:2px solid transparent;transition:background-color .18s cubic-bezier(.16,1,.3,1)}.ds-btn-primary:hover{background:color-mix(in srgb,#4B5130 78%,#111)}.ds-btn-primary:focus-visible{outline:3px solid #4B5130;outline-offset:3px}"
     },
     {
       "name": "Light Button",
@@ -184,23 +244,31 @@
       "refersTo": "button-light",
       "description": "Action on olive/espresso fields.",
       "html": "<a class=\"ds-btn-light\" href=\"#\">Call us</a>",
-      "css": ".ds-btn-light{display:inline-flex;align-items:center;min-height:3rem;padding:.55rem 1.35rem;border-radius:.75rem;background:#E6DCC3;color:#3A2A1F;font-weight:700;text-decoration:none}.ds-btn-light:hover{background:color-mix(in srgb,#E6DCC3 85%,#111)}.ds-btn-light:focus-visible{outline:3px solid #E6DCC3;outline-offset:3px}"
+      "css": ".ds-btn-light{display:inline-flex;align-items:center;min-height:3rem;padding:.55rem 1.35rem;border-radius:.3rem;background:#E6DCC3;color:#3A2A1F;font-weight:700;text-decoration:none}.ds-btn-light:hover{background:color-mix(in srgb,#E6DCC3 85%,#111)}.ds-btn-light:focus-visible{outline:3px solid #E6DCC3;outline-offset:3px}"
     },
     {
-      "name": "Status Pill",
-      "kind": "chip",
-      "refersTo": "status-pill",
-      "description": "Open-now badge in the hero.",
-      "html": "<p class=\"ds-status\"><span class=\"ds-dot\"></span>Open now · until 23:00</p>",
-      "css": ".ds-status{display:inline-flex;align-items:center;gap:.55rem;padding:.35rem .95rem;border-radius:999px;background:#3A2A1F;color:#E6DCC3;font-weight:700;margin:0}.ds-dot{width:.6rem;height:.6rem;border-radius:50%;background:#9DB86B}"
+      "name": "Text Link",
+      "kind": "button",
+      "refersTo": "text-link",
+      "description": "Every secondary action: bold, underlined, no box.",
+      "html": "<a class=\"ds-text-link\" href=\"#\">دلّني عالطريق ←</a>",
+      "css": ".ds-text-link{display:inline-flex;align-items:center;gap:.5em;min-height:2.75rem;color:#3A2A1F;font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:.35em}.ds-text-link:hover{text-decoration-color:#A9773F}.ds-text-link:focus-visible{outline:3px solid #4B5130;outline-offset:3px}"
     },
     {
-      "name": "Concept Tag",
-      "kind": "chip",
-      "refersTo": "concept-tag",
-      "description": "Labels every CGI render.",
-      "html": "<span class=\"ds-tag\">Concept</span>",
-      "css": ".ds-tag{display:inline-block;padding:.1rem .6rem;border-radius:999px;background:#111;color:#E6DCC3;font-size:.9rem;line-height:1.6}"
+      "name": "Hand Note",
+      "kind": "custom",
+      "refersTo": "hand",
+      "description": "Ruqaa aside beside set type.",
+      "html": "<p class=\"ds-note\">الأسعار بالليرة السورية</p>",
+      "css": ".ds-note{font-family:'Aref Ruqaa',serif;font-size:1.4rem;line-height:1.5;color:#4B5130;transform:rotate(-2deg);display:inline-block;margin:0}"
+    },
+    {
+      "name": "Status Line",
+      "kind": "custom",
+      "refersTo": "status-line",
+      "description": "Open-now as a plain sentence, not a badge.",
+      "html": "<p class=\"ds-status\"><strong>مفتوحين هلّق</strong>، لـ ١١ بالليل</p>",
+      "css": ".ds-status{font-size:1.4rem;color:#3A2A1F;margin:0}.ds-status strong{color:#4B5130}"
     },
     {
       "name": "Menu Board",
@@ -208,7 +276,7 @@
       "refersTo": "menu-board",
       "description": "Black board with item rows; the signature menu panel.",
       "html": "<section class=\"ds-board\"><h3>Hot Drinks</h3><div class=\"ds-item\"><span>Espresso</span><b>150 <small>SYP</small></b></div><div class=\"ds-item\"><span>Latte</span><b>260 <small>SYP</small></b></div></section>",
-      "css": ".ds-board{background:#111;color:#E6DCC3;padding:1.5rem 2.25rem 2.25rem;border:.4rem solid color-mix(in srgb,#3A2A1F 55%,#111);border-radius:.35rem;box-shadow:0 1.25rem 2.5rem -1rem rgb(0 0 0/.55)}.ds-board h3{margin:0 0 .5rem;padding-bottom:.75rem;border-bottom:2px solid #A9773F;font-size:1.6rem}.ds-item{display:flex;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid color-mix(in srgb,#E6DCC3 22%,#111);font-variant-numeric:tabular-nums}.ds-item small{font-weight:400;opacity:.85}"
+      "css": ".ds-board{background:#111;color:#E6DCC3;padding:1.5rem 2.25rem 2.25rem;border:.4rem solid color-mix(in srgb,#3A2A1F 55%,#111);border-radius:2px;box-shadow:0 1.25rem 2.5rem -1rem rgb(0 0 0/.55)}.ds-board h3{margin:0 0 .5rem;padding-bottom:.75rem;border-bottom:2px solid #A9773F;font-size:1.6rem}.ds-item{display:flex;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid color-mix(in srgb,#E6DCC3 22%,#111);font-variant-numeric:tabular-nums}.ds-item small{font-weight:400;opacity:.85}"
     },
     {
       "name": "Navigation",
@@ -221,12 +289,13 @@
   ],
   "narrative": {
     "northStar": "The café's own wall",
-    "overview": "The site is built from the room, not from a café template. Cream plaster is the ground. An oak shelf carries a row of black line-art baristas, and a full-width olive bench band sits under them, the way the mural and banquette sit in the renders. The menu hangs as black boards under dome pendant lamps on an espresso-brown wall. Colour arrives as whole fields: a cream wall, an espresso wall, an olive bench. It never appears as scattered accents.\n\nArabic comes first and is never a translation layer. Every layout rule is written in logical properties so the same wall reads correctly in both directions. The voice is warm and neighbourly. Nothing on the page claims more than the café has confirmed.",
+    "overview": "The page is built from the room and from things people in the room made, not from a template. Cream plaster is the ground. The first screen is the café's real hand-drawn mural: the shelf of coffee tools, the NATURAL and COSY plaques and five baristas, cut out of the design renders as ink. It stands on a full-width olive bench band. Short hand-lettered Ruqaa notes, the script of Syrian shop signs and handwritten menus, sit beside the set type the way a note sits beside a printed menu. The menu hangs as black boards under dome pendant lamps on an espresso-brown wall.\n\nArabic comes first and is never a translation layer, and the copy talks the way people in Daraa talk (\"مفتوحين هلّق، لـ ١١ بالليل\"). Every layout rule is written in logical properties. Nothing on the page claims more than the café has confirmed.",
     "keyCharacteristics": [
-      "Committed colour fields per section: cream → olive bench → espresso → cream → olive → espresso.",
-      "Stroke-only black line art (round caps, about 2px, non-scaling) for the mural and plaques.",
-      "Large, quiet Arabic display type; Latin is the companion, not the lead.",
-      "Real interior renders, always labelled \"Concept / تصوّر\"."
+      "The café's own mural, never a redrawn or generated imitation, carries the first viewport.",
+      "Committed colour fields per section: cream wall → olive bench → espresso wall → cream → olive → espresso.",
+      "Set type (IBM Plex Sans Arabic / Inter) for facts; hand-lettered Ruqaa for short asides only.",
+      "Spoken times and colloquial copy; no em dashes, no grey ledes under headings.",
+      "Real renders in an uneven editorial spread, each captioned \"· تصوّر / · concept\"."
     ],
     "rules": [
       {
@@ -236,31 +305,38 @@
       },
       {
         "name": "The Oak-Is-Wood Rule",
-        "body": "Oak marks wood and light (shelves, rules, glow). It is never text.",
+        "body": "Oak marks wood and light (rules, underlines, glow). It is never text on cream.",
         "section": "colors"
       },
       {
+        "name": "The Note-Not-Copy Rule",
+        "body": "Ruqaa is for one-line asides a person would scribble: never headings, menu items, prices, hours or buttons.",
+        "section": "typography"
+      },
+      {
         "name": "The No-Tracking-On-Arabic Rule",
-        "body": "Never set letter-spacing on Arabic text; it breaks the joins. Latin headings may take −0.015em.",
+        "body": "Never set `letter-spacing` on Arabic text.",
         "section": "typography"
       },
       {
         "name": "The Weight-Budget Rule",
-        "body": "On /, Latin runs stay at 400 so Inter 600 is never fetched. On /en/, Arabic runs stay at 700 so only one Arabic face loads. This keeps fonts ≤ 120 KB per page.",
+        "body": "On `/`, Latin runs stay at 400; on `/en/`, Arabic runs stay at 700. Fonts are about 139 KB on `/` and about 97 KB on `/en/`.",
         "section": "typography"
       }
     ],
     "dos": [
-      "**Do** give each section one whole colour field from the palette.",
-      "**Do** label every render \"Concept / تصوّر\" until real photos replace it.",
-      "**Do** wrap mixed-direction runs (English names, prices, phone numbers) in `<bdi>` or `dir=\"ltr\"`.",
-      "**Do** keep all business facts in `site.config.json`, and flag sample data `\"demo\": true`."
+      "**Do** use the café's own artwork and photos before drawing anything new.",
+      "**Do** write the way people in Daraa speak: short, warm, colloquial.",
+      "**Do** say times as spoken (\"٨ الصبح\", \"نص الليل\", \"8am\", \"midnight\").",
+      "**Do** label every render as a concept until real photos replace it.",
+      "**Do** keep all business facts in `site.config.json`, and flag samples `\"demo\": true`."
     ],
     "donts": [
-      "**Don't** use the presentation deck's teal (`#3AEFCC`); it belongs to the PowerPoint template, not the café.",
-      "**Don't** put oak behind or as text.",
-      "**Don't** add kickers or eyebrows above headings, glyph or emoji icons, gradient text, or glass.",
-      "**Don't** mirror the line art, the logo or the coffee-cup favicon in RTL.",
+      "**Don't** use the deck's teal (`#3AEFCC`).",
+      "**Don't** redraw the mural as vector clip-art or generate stand-in illustrations.",
+      "**Don't** use pills, badges or chips for status, tags or links.",
+      "**Don't** put a grey lede paragraph under every heading, or use em dashes in copy.",
+      "**Don't** add kickers or eyebrows, glyph or emoji icons, gradient text, or glass.",
       "**Don't** invent claims such as awards, ratings, reviews or \"best in Daraa\"."
     ]
   }

@@ -1,106 +1,58 @@
 {
   "locale": "en-GB",
-  "title": "كُوب – Kub Coffee | Specialty coffee in Daraa",
-  "description": "Kub is a cosy café in Daraa: hanging plants, warm wood and specialty coffee. See the menu and opening hours, and find your way to us.",
+  "title": "كُوب – Kub Coffee | Coffee in Daraa",
+  "description": "Kub is a small café in Daraa with good coffee and a comfortable place to sit. See the menu, prices and opening hours.",
   "skip": "Skip to content",
-  "nav": {
-    "label": "Page sections",
-    "menu": "Menu",
-    "gallery": "The space",
-    "visit": "Visit"
-  },
-  "langSwitch": {
-    "label": "العربية",
-    "hreflang": "ar",
-    "title": "اقرأ الصفحة بالعربية"
-  },
+  "nav": { "label": "Page sections", "menu": "Menu", "gallery": "The space", "visit": "Find us" },
+  "langSwitch": { "label": "العربية", "hreflang": "ar", "title": "اقرأ الصفحة بالعربية" },
   "hero": {
-    "viewMenu": "View menu",
-    "directions": "Get directions",
+    "viewMenu": "See the menu",
+    "directions": "Show me the way",
     "hoursSummary": "Opening hours",
-    "imageAlt": "Kub's glass entrance with the illuminated logo sign and wooden seating inside"
+    "muralAlt": "Kub's wall mural: a shelf of coffee tools, the Natural and Cosy plaques, and five baristas making coffee"
   },
   "status": {
-    "openUntil": "Open now · until {time}",
-    "closedOpens": "Closed · opens {day} at {time}",
+    "openLead": "Open now",
+    "openRest": ", till {time}",
+    "closedLead": "Closed right now",
+    "closedRest": ", we open {day} at {time}",
     "today": "today",
-    "tomorrow": "tomorrow",
-    "midnight": "midnight"
+    "tomorrow": "tomorrow"
   },
-  "days": {
-    "sat": "Saturday",
-    "sun": "Sunday",
-    "mon": "Monday",
-    "tue": "Tuesday",
-    "wed": "Wednesday",
-    "thu": "Thursday",
-    "fri": "Friday"
-  },
+  "days": { "sat": "Saturday", "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday", "fri": "Friday" },
   "menu": {
-    "heading": "The menu",
-    "intro": "Straight from the boards above the bar. Prices in Syrian pounds.",
+    "heading": "Menu",
+    "note": "Prices in Syrian pounds",
     "tablistLabel": "Menu sections"
-  },
-  "values": {
-    "heading": "Natural and cosy",
-    "natural": "Natural",
-    "cosy": "Cosy",
-    "body": "Hanging plants, oak, soft olive benches and baristas drawn on the wall. Come for a coffee and take your time."
   },
   "gallery": {
     "heading": "Inside Kub",
-    "note": "These are 3D concept renders of the space. Real photos are coming soon.",
-    "concept": "Concept",
+    "note": "These are design renders of the space. Real photos soon.",
+    "concept": "concept",
     "zones": {
-      "entrance": {
-        "caption": "Entrance",
-        "alt": "Kub's glass entrance with the illuminated logo sign and wooden seating inside"
-      },
-      "seating": {
-        "caption": "Seating hall",
-        "alt": "Long seating hall with oak tables, cream chairs and black pendant lamps beneath the menu boards"
-      },
-      "featureWall": {
-        "caption": "Olive wall",
-        "alt": "Angled olive feature wall lit by a lamp, with the Kub logo, coffee-tool drawings and a green armchair in front"
-      },
-      "bar": {
-        "caption": "Coffee bar",
-        "alt": "Coffee bar with a three-group espresso machine, grinder, wooden shelves and hanging plants"
-      },
-      "mural": {
-        "caption": "Mural wall",
-        "alt": "Black line-art mural of baristas making coffee above an olive bench and plants, with ring-back chairs in front"
-      },
-      "counter": {
-        "caption": "Order counter",
-        "alt": "Wooden order counter with the Kub logo, a tall mirror and coffee shelves behind it"
-      },
-      "service": {
-        "caption": "Prep corner",
-        "alt": "Preparation corner with dark brown cabinets, warm under-shelf light and the hot-drinks menu board"
-      }
+      "entrance": { "caption": "The entrance", "alt": "Kub's glass entrance with the illuminated logo sign and wooden seating inside" },
+      "seating": { "caption": "Seating hall", "alt": "Long seating hall with oak tables, cream chairs and black pendant lamps beneath the menu boards" },
+      "featureWall": { "caption": "The olive wall", "alt": "Angled olive feature wall lit by a lamp, with the Kub logo, coffee-tool drawings and a green armchair in front" },
+      "bar": { "caption": "The bar", "alt": "Coffee bar with a three-group espresso machine, grinder, wooden shelves and hanging plants" },
+      "mural": { "caption": "Mural wall", "alt": "Black line-art mural of baristas making coffee above an olive bench and plants, with ring-back chairs in front" },
+      "counter": { "caption": "The counter", "alt": "Wooden order counter with the Kub logo, a tall mirror and coffee shelves behind it" },
+      "service": { "caption": "Prep corner", "alt": "Preparation corner with dark brown cabinets, warm under-shelf light and the hot-drinks menu board" }
     }
   },
   "visit": {
-    "heading": "Visit us",
+    "heading": "Come by",
     "addressLabel": "Address",
     "directions": "Open the map",
     "hoursCaption": "Opening hours",
     "dayCol": "Day",
     "timeCol": "Hours",
-    "call": "Call us",
+    "call": "Call",
     "whatsapp": "Message us on WhatsApp",
-    "contactLabel": "Get in touch"
+    "contactLabel": "Talk to us"
   },
-  "footer": {
-    "follow": "Follow us",
-    "instagram": "Instagram",
-    "facebook": "Facebook",
-    "rights": "All rights reserved"
-  },
+  "footer": { "signoff": "See you soon", "follow": "Follow us", "instagram": "Instagram", "facebook": "Facebook", "rights": "All rights reserved" },
   "demo": {
-    "text": "Demo version — prices and contact details are samples",
+    "text": "Demo version: prices, hours and contact details are samples",
     "dismiss": "Hide notice"
   },
   "notFound": {

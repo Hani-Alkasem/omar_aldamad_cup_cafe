@@ -1,10 +1,12 @@
 // Renders the Arabic (/) and English (/en/) pages from one template and site.config.json.
 // Usage: node scripts/build.mjs [--env=staging|production] [--out=dist]
-import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, readdirSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, dirname, basename, extname } from 'node:path';
-import { icons, leafA, leafB, lamp, mural } from '../src/svg.mjs';
+import { icons, lamp } from '../src/svg.mjs';
+import { spokenTime, arabicDigits } from '../src/js/time.js';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const SRC = join(ROOT, 'src');
@@ -29,8 +31,7 @@ mkdirSync(OUT, { recursive: true });
 
 // ── Assets: content-hashed copies under /assets/ (served with a 1-year immutable cache) ──
 const assetUrls = new Map();
-function emitAsset(rel, outDir = dirname(rel)) {
-  const buf = readFileSync(join(SRC, rel));
+function emitAsset(rel, outDir = dirname(rel), buf = readFileSync(join(SRC, rel))) {
   const hash = createHash('sha256').update(buf).digest('hex').slice(0, 10);
   const ext = extname(rel);
   const outRel = join(outDir, `${basename(rel, ext)}.${hash}${ext}`);
@@ -40,11 +41,37 @@ function emitAsset(rel, outDir = dirname(rel)) {
   assetUrls.set(`/${rel}`, url);
   return url;
 }
-for (const f of readdirSync(join(SRC, 'assets/fonts')).filter((f) => f.endsWith('.woff2'))) emitAsset(`assets/fonts/${f}`);
-for (const f of readdirSync(join(SRC, 'assets/img')).filter((f) => f !== 'manifest.json')) emitAsset(`assets/img/${f}`);
+// Aref Ruqaa sets the short hand-lettered notes only, so it ships subset to exactly those characters.
+const RUQAA = ['aref-ruqaa-arabic-400-normal', 'aref-ruqaa-latin-400-normal'];
+const noteText = ['ar', 'en']
+  .flatMap((l) => [config.tagline[l], i18n[l].menu.note, i18n[l].gallery.note, i18n[l].footer.signoff])
+  .join('') + '0123456789٠١٢٣٤٥٦٧٨٩.,،:؛ ';
+function subsetFont(name) {
+  const src = join(SRC, 'assets/fonts', `${name}.woff2`);
+  const out = join(mkdtempSync(join(tmpdir(), 'kub-font-')), `${name}.woff2`);
+  try {
+    execFileSync('pyftsubset', [src, `--text=${noteText}`, '--flavor=woff2', '--layout-features=*', `--output-file=${out}`], { stdio: 'ignore' });
+    return readFileSync(out);
+  } catch {
+    console.warn(`build: pyftsubset unavailable, shipping full ${name}`);
+    return readFileSync(src);
+  }
+}
+for (const f of readdirSync(join(SRC, 'assets/fonts')).filter((f) => f.endsWith('.woff2'))) {
+  const name = basename(f, '.woff2');
+  emitAsset(`assets/fonts/${f}`, 'assets/fonts', RUQAA.includes(name) ? subsetFont(name) : undefined);
+}
+for (const f of readdirSync(join(SRC, 'assets/img')).filter((f) => !f.endsWith('.json'))) emitAsset(`assets/img/${f}`);
+
+// One small module: time.js inlined ahead of main.js, so the browser makes a single request.
+const bundle = Buffer.from(
+  readFileSync(join(SRC, 'js/time.js'), 'utf8').replace(/^export /gm, '') +
+    '\n' +
+    readFileSync(join(SRC, 'js/main.js'), 'utf8').replace(/^import .*\n/gm, ''),
+);
 const asset = {
   favicon: emitAsset('assets/favicon.svg'),
-  js: emitAsset('js/main.js', 'assets/js'),
+  js: emitAsset('js/main.js', 'assets/js', bundle),
   appleIcon: assetUrls.get('/assets/img/apple-touch-icon.png'),
 };
 const img = (name) => assetUrls.get(`/assets/img/${name}`);
@@ -79,18 +106,12 @@ function render(tpl, ctx) {
 const DAYS = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'];
 const hours = Object.fromEntries(DAYS.map((d) => [d, config.hours[d] ?? null]));
 const numberFmt = (locale) => new Intl.NumberFormat(locale);
-const toLocaleDigits = (s, locale) => s.replace(/\d/g, (d) => numberFmt(locale).format(Number(d)));
-function timeFmt(hhmm, locale, midnight) {
-  if (hhmm === '23:59' && midnight) return midnight;
-  const [h, m] = hhmm.split(':').map(Number);
-  return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(Date.UTC(2000, 0, 1, h, m));
-}
-const range = (d, t) => (hours[d] ? `${timeFmt(hours[d][0], t.locale)} – ${timeFmt(hours[d][1], t.locale, t.status.midnight)}` : null);
+const range = (d, lang) => (hours[d] ? `${spokenTime(hours[d][0], lang)} – ${spokenTime(hours[d][1], lang)}` : null);
 
-function hoursSummary(t) {
+function hoursSummary(t, lang) {
   const groups = [];
   for (const d of DAYS) {
-    const r = range(d, t);
+    const r = range(d, lang);
     const last = groups.at(-1);
     if (last && last.r === r) last.days.push(d);
     else groups.push({ r, days: [d] });
@@ -101,18 +122,25 @@ function hoursSummary(t) {
     .join(' · ');
 }
 
-function picture(slug, alt, sizes, { priority = false } = {}) {
+function picture(slug, alt, sizes, { priority = false, fallback = 'jpg' } = {}) {
   const meta = imgManifest.images[slug];
   const set = (ext) => meta.widths.map((w) => `${img(`${slug}-${w}.${ext}`)} ${w}w`).join(', ');
-  const fallbackW = meta.widths.includes(960) ? 960 : meta.widths.at(-1);
+  const fallbackW = meta.widths[Math.floor((meta.widths.length - 1) / 2)];
   const h = Math.round((meta.height / meta.width) * fallbackW);
   const loading = priority ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"';
-  return `<picture><source type="image/avif" srcset="${set('avif')}" sizes="${sizes}"><source type="image/webp" srcset="${set('webp')}" sizes="${sizes}"><img src="${img(`${slug}-${fallbackW}.jpg`)}" srcset="${set('jpg')}" sizes="${sizes}" width="${fallbackW}" height="${h}" alt="${esc(alt)}" ${loading}></picture>`;
+  return `<picture><source type="image/avif" srcset="${set('avif')}" sizes="${sizes}"><source type="image/webp" srcset="${set('webp')}" sizes="${sizes}"><img src="${img(`${slug}-${fallbackW}.${fallback}`)}" srcset="${set(fallback)}" sizes="${sizes}" width="${fallbackW}" height="${h}" alt="${esc(alt)}" ${loading}></picture>`;
 }
-const HERO_SIZES = '(min-width: 64rem) 36rem, (min-width: 48rem) 100vw, 1px';
-const GALLERY_SIZES = '(min-width: 64rem) 24rem, (min-width: 48rem) 46vw, 48vw';
-const LEAD_SIZES = '100vw';
-const GALLERY = ['entrance', 'seating', 'featureWall', 'bar', 'mural', 'counter', 'service'];
+const MURAL_SIZES = '(min-width: 76rem) 70rem, (min-width: 48rem) 94vw, 170vw';
+// Gallery spread: [zone, sizes]. Layout per zone lives in main.css (.spread-<zone>).
+const GALLERY = [
+  ['entrance', '(min-width: 64rem) 46rem, 100vw'],
+  ['seating', '(min-width: 64rem) 24rem, 50vw'],
+  ['featureWall', '(min-width: 64rem) 24rem, 50vw'],
+  ['mural', '(min-width: 64rem) 36rem, 100vw'],
+  ['bar', '(min-width: 64rem) 36rem, 50vw'],
+  ['counter', '(min-width: 64rem) 24rem, 50vw'],
+  ['service', '(min-width: 64rem) 46rem, 100vw'],
+];
 const slugOf = Object.fromEntries(Object.entries(imgManifest.images).map(([slug, m]) => [m.zone, slug]));
 
 function jsonLd(lang, t, addressResolved, geoResolved) {
@@ -194,17 +222,17 @@ for (const lang of ['ar', 'en']) {
     })
     .join('\n');
 
-  const galleryItems = GALLERY.map((zone) => {
+  const galleryItems = GALLERY.map(([zone, sizes]) => {
     const z = t.gallery.zones[zone];
-    return `<li${zone === 'entrance' ? ' class="is-mobile-only"' : ''}><figure class="frame">${picture(slugOf[zone], z.alt, zone === 'entrance' ? LEAD_SIZES : GALLERY_SIZES)}<figcaption><span class="frame-caption">${esc(z.caption)}</span> <span class="concept-tag">${esc(t.gallery.concept)}</span></figcaption></figure></li>`;
+    return `<li class="spread-${zone}"><figure class="frame">${picture(slugOf[zone], z.alt, sizes)}<figcaption>${esc(z.caption)} <span class="concept">· ${esc(t.gallery.concept)}</span></figcaption></figure></li>`;
   }).join('\n');
 
-  const hoursRows = DAYS.map((d) => `<tr data-day="${d}"><th scope="row">${esc(t.days[d])}</th><td>${range(d, t) ? `<bdi>${esc(range(d, t))}</bdi>` : '—'}</td></tr>`).join('\n');
-  const hoursList = `<dl class="week">${DAYS.map((d) => `<div><dt>${esc(t.days[d])}</dt><dd><bdi>${esc(range(d, t) ?? '—')}</bdi></dd></div>`).join('')}</dl>`;
+  const hoursRows = DAYS.map((d) => `<tr data-day="${d}"><th scope="row">${esc(t.days[d])}</th><td>${range(d, lang) ? `<bdi>${esc(range(d, lang))}</bdi>` : '—'}</td></tr>`).join('\n');
+  const hoursList = `<dl class="week">${DAYS.map((d) => `<div><dt>${esc(t.days[d])}</dt><dd><bdi>${esc(range(d, lang) ?? '—')}</bdi></dd></div>`).join('')}</dl>`;
 
-  const heroSet = (ext) => imgManifest.images.entrance.widths.map((w) => `${img(`entrance-${w}.${ext}`)} ${w}w`).join(', ');
+  const muralSet = imgManifest.images['wall-mural'].widths.map((w) => `${img(`wall-mural-${w}.avif`)} ${w}w`).join(', ');
   const preloads = [
-    `<link rel="preload" as="image" type="image/avif" href="${img('entrance-960.avif')}" imagesrcset="${heroSet('avif')}" imagesizes="${HERO_SIZES}" media="(min-width: 48rem)" fetchpriority="high">`,
+    `<link rel="preload" as="image" type="image/avif" href="${img('wall-mural-1100.avif')}" imagesrcset="${muralSet}" imagesizes="${MURAL_SIZES}" fetchpriority="high">`,
     `<link rel="preload" as="font" type="font/woff2" href="${font(lang === 'ar' ? 'ibm-plex-sans-arabic-arabic-700-normal' : 'inter-latin-600-normal')}" crossorigin>`,
   ].join('\n');
 
@@ -236,7 +264,7 @@ for (const lang of ['ar', 'en']) {
     daysJson: esc(JSON.stringify(t.days)),
     hoursList,
     hoursRows,
-    hoursSummary: hoursSummary(t),
+    hoursSummary: hoursSummary(t, lang),
     addressText,
     addressIcon: icons.pin,
     arrowIcon: icons.arrow,
@@ -245,20 +273,13 @@ for (const lang of ['ar', 'en']) {
     chatIcon: icons.chat,
     instagramIcon: icons.instagram,
     facebookIcon: icons.facebook,
-    heroPicture: picture('entrance', t.hero.imageAlt, HERO_SIZES, { priority: true }),
-    heroCaption: t.gallery.zones.entrance.caption,
-    mural,
+    muralPicture: picture('wall-mural', t.hero.muralAlt, MURAL_SIZES, { priority: true, fallback: 'png' }),
     menuTabs,
     menuPanels,
-    leafA,
-    leafB,
-    plaqueAltLang: other,
-    plaqueNaturalAlt: lang === 'ar' ? 'NATURAL' : i18n.ar.values.natural,
-    plaqueCosyAlt: lang === 'ar' ? 'COSY' : i18n.ar.values.cosy,
     galleryItems,
     callLabel: t.visit.call.replace(/ /g, '\u00a0'),
     telHref: config.contact.phone.replace(/[^\d+]/g, ''),
-    phoneDisplay: toLocaleDigits(config.contact.phone, t.locale).replace(/ /g, '\u00a0'),
+    phoneDisplay: (lang === 'ar' ? arabicDigits(config.contact.phone) : config.contact.phone).replace(/ /g, '\u00a0'),
     waNumber: config.contact.whatsapp.replace(/\D/g, ''),
     year: nf.format(new Date().getFullYear()).replace(/[٬,]/g, ''),
   };

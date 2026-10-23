@@ -118,10 +118,11 @@ for (const { lang, path, dir } of PAGES) {
       }
     });
 
-    test('open-now badge renders', async ({ page }) => {
+    test('open-now line renders', async ({ page }) => {
       await page.goto(path, { waitUntil: 'networkidle' });
-      await expect(page.locator('[data-status-pill]')).toBeVisible();
-      await expect(page.locator('[data-status-text]')).not.toBeEmpty();
+      await expect(page.locator('[data-status-line]')).toBeVisible();
+      await expect(page.locator('[data-status-lead]')).not.toBeEmpty();
+      await expect(page.locator('[data-status-rest]')).not.toBeEmpty();
       await expect(page.locator('[data-hours-table] tr.is-today')).toHaveCount(1);
     });
   });
