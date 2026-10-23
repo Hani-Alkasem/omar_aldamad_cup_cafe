@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="{{lang}}" dir="{{dir}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<meta name="description" content="{{description}}">
+{{{robotsMeta}}}
+<link rel="canonical" href="{{canonical}}">
+<link rel="alternate" hreflang="ar" href="{{urlAr}}">
+<link rel="alternate" hreflang="en" href="{{urlEn}}">
+<link rel="alternate" hreflang="x-default" href="{{urlAr}}">
+<meta name="theme-color" content="#3A2A1F">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{c.name.full}}">
+<meta property="og:title" content="{{title}}">
+<meta property="og:description" content="{{description}}">
+<meta property="og:url" content="{{canonical}}">
+<meta property="og:image" content="{{ogImage}}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="{{ogLocale}}">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="{{asset.favicon}}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="{{asset.appleIcon}}">
+<link rel="manifest" href="/manifest.webmanifest">
+{{{preloads}}}
+<style>{{{css}}}</style>
+<script type="module" src="{{asset.js}}"></script>
+<script type="application/ld+json">{{{jsonld}}}</script>
+</head>
+<body class="page-{{page}}">
+<a class="skip" href="#main">{{t.skip}}</a>
+{{{demoBanner}}}
+<header class="site-header" data-header>
+  <div class="wrap header-row">
+    <nav class="site-nav" id="site-nav" aria-label="{{t.nav.label}}">
+      <ul>
+        <li><a href="{{paths.menu}}"{{{current.menu}}}>{{t.nav.menu}}</a></li>
+        <li><a href="{{paths.home}}#about">{{t.nav.about}}</a></li>
+        <li><a href="{{paths.home}}#visit">{{t.nav.visit}}</a></li>
+      </ul>
+    </nav>
+    <a class="logo" href="{{paths.home}}" aria-label="{{c.name.full}}"{{{current.home}}}><span lang="ar">كُوب</span></a>
+    <div class="header-end">
+      <a class="lang-switch" href="{{paths.alt}}" hreflang="{{t.langSwitch.hreflang}}" lang="{{t.langSwitch.hreflang}}" title="{{t.langSwitch.title}}">{{t.langSwitch.label}}</a>
+      <button class="nav-toggle" type="button" aria-controls="site-nav" aria-expanded="false" data-label-open="{{t.nav.open}}" data-label-close="{{t.nav.close}}" hidden>{{{menuIcon}}}<span class="visually-hidden" data-nav-label>{{t.nav.open}}</span></button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+{{{content}}}
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-brand">
+      <p class="footer-logo" lang="ar">كُوب</p>
+      <p class="footer-tagline">{{t.footer.tagline}}</p>
+    </div>
+    <div class="footer-cols">
+      <div>
+        <h2>{{t.footer.visit}}</h2>
+        <p>{{addressText}}</p>
+        <p><a href="{{c.address.mapsUrl}}" rel="noopener" target="_blank">{{t.visit.directions}}</a></p>
+      </div>
+      <div>
+        <h2>{{t.footer.hours}}</h2>
+        {{{hoursCompact}}}
+      </div>
+      <div>
+        <h2>{{t.footer.contact}}</h2>
+        <p><a href="tel:{{telHref}}" dir="ltr" class="num">{{phoneDisplay}}</a></p>
+        <p><a href="https://wa.me/{{waNumber}}" rel="noopener" target="_blank">{{t.visit.whatsapp}}</a></p>
+      </div>
+      <div>
+        <h2>{{t.footer.follow}}</h2>
+        <p><a href="{{c.social.instagram}}" rel="noopener">{{t.footer.instagram}}</a></p>
+        <p><a href="{{c.social.facebook}}" rel="noopener">{{t.footer.facebook}}</a></p>
+      </div>
+    </div>
+    <p class="footer-legal">© <span class="num">{{year}}</span> {{c.name.full}} · {{t.footer.rights}} · <a href="https://unsplash.com" rel="noopener">{{t.footer.photos}}</a></p>
+  </div>
+</footer>
+</body>
+</html>

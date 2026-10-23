@@ -1,0 +1,106 @@
+<section class="hero" aria-labelledby="hero-title">
+  {{{photo.hero}}}
+  <div class="hero-scrim" aria-hidden="true"></div>
+  <div class="wrap hero-copy">
+    <h1 id="hero-title">{{t.hero.heading}}</h1>
+    <p class="hero-body">{{t.hero.body}}</p>
+    <p class="hero-actions">
+      <a class="btn btn-cream" href="{{paths.menu}}">{{t.hero.ctaMenu}}</a>
+      <a class="text-link" href="#visit">{{t.hero.ctaVisit}}{{{arrowIcon}}}</a>
+    </p>
+    {{{statusLine}}}
+  </div>
+</section>
+
+<section class="intro" id="about" aria-labelledby="about-title">
+  <div class="wrap intro-inner">
+    <h2 id="about-title" class="visually-hidden">{{t.nav.about}}</h2>
+    <p class="intro-text">{{t.intro.text}}</p>
+  </div>
+</section>
+
+<section class="featured" aria-labelledby="featured-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="featured-title">{{t.featured.heading}}</h2>
+      <a class="text-link" href="{{paths.menu}}">{{t.featured.all}}{{{arrowIcon}}}</a>
+    </div>
+    <ul class="tiles">
+      {{{featuredTiles}}}
+    </ul>
+  </div>
+</section>
+
+<section class="feature" aria-labelledby="craft-title">
+  <div class="wrap feature-grid">
+    <div class="feature-media">{{{photo.craft}}}</div>
+    <div class="feature-copy">
+      <h2 id="craft-title">{{t.craft.heading}}</h2>
+      <p>{{t.craft.body}}</p>
+      <a class="text-link" href="{{paths.menu}}#hot">{{t.craft.link}}{{{arrowIcon}}}</a>
+    </div>
+  </div>
+</section>
+
+<section class="feature feature-flip" aria-labelledby="space-title">
+  <div class="wrap feature-grid">
+    <div class="feature-media">{{{photo.space}}}</div>
+    <div class="feature-copy">
+      <h2 id="space-title">{{t.space.heading}}</h2>
+      <p>{{t.space.body}}</p>
+      <a class="text-link" href="#visit">{{t.space.link}}{{{arrowIcon}}}</a>
+    </div>
+  </div>
+</section>
+
+<section class="flavours" aria-labelledby="flavours-title">
+  <div class="wrap flavours-grid">
+    <div class="flavours-copy">
+      <h2 id="flavours-title">{{t.nuts.heading}}</h2>
+      <p>{{t.nuts.body}}</p>
+      <ul class="flavour-list">
+        {{{flavourItems}}}
+      </ul>
+    </div>
+    <div class="flavours-media">{{{photo.pistachio}}}</div>
+  </div>
+</section>
+
+<section class="visit" id="visit" aria-labelledby="visit-title">
+  <div class="wrap visit-grid">
+    <div class="visit-media">{{{photo.counter}}}</div>
+    <div class="visit-info">
+      <h2 id="visit-title">{{t.visit.heading}}</h2>
+      {{{statusLine}}}
+      <h3>{{t.visit.addressLabel}}</h3>
+      <address>{{addressText}}</address>
+      <p><a class="btn btn-primary" href="{{c.address.mapsUrl}}" rel="noopener" target="_blank">{{{pinIcon}}}{{t.visit.directions}}</a></p>
+      <table class="hours" data-hours-table>
+        <caption>{{t.visit.hoursCaption}}</caption>
+        <thead><tr><th scope="col">{{t.visit.dayCol}}</th><th scope="col">{{t.visit.timeCol}}</th></tr></thead>
+        <tbody>
+          {{{hoursRows}}}
+        </tbody>
+      </table>
+      <h3>{{t.visit.contactLabel}}</h3>
+      <ul class="contact">
+        <li><a class="text-link" href="tel:{{telHref}}">{{{phoneIcon}}}<span>{{callLabel}}</span><bdi dir="ltr" class="num">{{phoneDisplay}}</bdi></a></li>
+        <li><a class="text-link" href="https://wa.me/{{waNumber}}" rel="noopener" target="_blank">{{{chatIcon}}}{{t.visit.whatsapp}}</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="strip" aria-labelledby="strip-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="strip-title">{{t.strip.heading}}</h2>
+      <a class="text-link" href="{{c.social.instagram}}" rel="noopener">{{t.strip.link}}{{{arrowIcon}}}</a>
+    </div>
+    <ul class="strip-photos">
+      <li>{{{photo.beans}}}</li>
+      <li>{{{photo.together}}}</li>
+      <li>{{{photo.hot-chocolate}}}</li>
+    </ul>
+  </div>
+</section>

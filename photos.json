@@ -1,0 +1,15 @@
+{
+  "_note": "Unsplash photo IDs per slot, best first. scripts/photos.mjs downloads the first candidate that is free (Unsplash License, not Unsplash+) and records credit in src/assets/photos/credits.json.",
+  "hero": ["l-V8JoX75a8", "nzyzAUsbV0M", "iJMHMXT5-5E"],
+  "craft": ["So7cyDtlmls", "rANy_4sL6fg", "JvQ0TTXxJEw"],
+  "space": ["0i5clWZBit0", "vZY6_oR8JQo", "vygFIMTe5l4"],
+  "counter": ["BBZ1O-D3gYc", "nBR694hNslc", "CO7bBJlVgg8"],
+  "beans": ["H80RH1Hhvu8", "U2AgTbVPwlE"],
+  "espresso": ["DXSE0Xa0EtA", "nRJiMTHKtFw", "69YqZOU6-Jo"],
+  "cappuccino": ["b9EdqMBA2BM", "UWRqlJcDCXA"],
+  "iced-latte": ["L-sm1B4L1Ns"],
+  "mocha": ["utKuFAGiFII", "Edmcnx3LLsM", "keTvQFtMYuc"],
+  "hot-chocolate": ["RqBoo_uHIl4", "s0Cnecr8W4U"],
+  "pistachio": ["fiquoT6JZKE"],
+  "together": ["FTkd671TBt8", "B3x-XWrYEZc", "NHOH-ytdFkM"]
+}

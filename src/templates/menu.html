@@ -1,0 +1,22 @@
+<section class="page-head" aria-labelledby="menu-title">
+  <div class="wrap">
+    <h1 id="menu-title">{{t.menuPage.heading}}</h1>
+    <p class="page-intro">{{t.menuPage.intro}}</p>
+    <nav class="jump" aria-label="{{t.menuPage.jump}}">
+      <ul>
+        {{{jumpLinks}}}
+      </ul>
+    </nav>
+  </div>
+</section>
+
+{{{menuSections}}}
+
+<section class="menu-cta" aria-labelledby="menu-cta-title">
+  <div class="wrap menu-cta-inner">
+    <h2 id="menu-cta-title">{{t.menuPage.ctaHeading}}</h2>
+    <p>{{t.menuPage.ctaBody}}</p>
+    {{{statusLine}}}
+    <p><a class="btn btn-cream" href="{{paths.home}}#visit">{{t.menuPage.ctaButton}}</a></p>
+  </div>
+</section>

@@ -1,15 +1,23 @@
 {
   "locale": "en-GB",
-  "title": "كُوب – Kub Coffee | Coffee in Daraa",
-  "description": "Kub is a small café in Daraa with good coffee and a comfortable place to sit. See the menu, prices and opening hours.",
+  "meta": {
+    "homeTitle": "كُوب – Kub Coffee | Specialty coffee in Daraa",
+    "homeDescription": "Kub is a small café in Daraa: espresso, cappuccino, iced lattes and nut flavours, and a comfortable place to sit. See the menu and opening hours.",
+    "menuTitle": "Menu | كُوب – Kub Coffee",
+    "menuDescription": "The full Kub menu: hot and iced drinks and nut flavours, with prices in Syrian pounds."
+  },
   "skip": "Skip to content",
-  "nav": { "label": "Page sections", "menu": "Menu", "gallery": "The space", "visit": "Find us" },
+  "nav": { "label": "Main menu", "menu": "Menu", "about": "About", "visit": "Visit", "open": "Open menu", "close": "Close menu" },
   "langSwitch": { "label": "العربية", "hreflang": "ar", "title": "اقرأ الصفحة بالعربية" },
+  "demo": {
+    "text": "Demo version: prices, hours and contact details are samples; photos are from Unsplash",
+    "dismiss": "Hide notice"
+  },
   "hero": {
-    "viewMenu": "See the menu",
-    "directions": "Show me the way",
-    "hoursSummary": "Opening hours",
-    "muralAlt": "Kub's wall mural: a shelf of coffee tools, the Natural and Cosy plaques, and five baristas making coffee"
+    "heading": "Specialty coffee, made slowly.",
+    "body": "A small café in Daraa where every cup is made with care, from a straight espresso to an iced latte.",
+    "ctaMenu": "See the menu",
+    "ctaVisit": "Visit us"
   },
   "status": {
     "openLead": "Open now",
@@ -19,28 +27,28 @@
     "today": "today",
     "tomorrow": "tomorrow"
   },
-  "days": { "sat": "Saturday", "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday", "fri": "Friday" },
-  "menu": {
-    "heading": "Menu",
-    "note": "Prices in Syrian pounds",
-    "tablistLabel": "Menu sections"
+  "intro": {
+    "text": "A good cup starts with the details: the right grind, a measured shot, milk steamed slowly. The rest is a good seat.",
+    "link": "About Kub"
   },
-  "gallery": {
-    "heading": "Inside Kub",
-    "note": "These are design renders of the space. Real photos soon.",
-    "concept": "concept",
-    "zones": {
-      "entrance": { "caption": "The entrance", "alt": "Kub's glass entrance with the illuminated logo sign and wooden seating inside" },
-      "seating": { "caption": "Seating hall", "alt": "Long seating hall with oak tables, cream chairs and black pendant lamps beneath the menu boards" },
-      "featureWall": { "caption": "The olive wall", "alt": "Angled olive feature wall lit by a lamp, with the Kub logo, coffee-tool drawings and a green armchair in front" },
-      "bar": { "caption": "The bar", "alt": "Coffee bar with a three-group espresso machine, grinder, wooden shelves and hanging plants" },
-      "mural": { "caption": "Mural wall", "alt": "Black line-art mural of baristas making coffee above an olive bench and plants, with ring-back chairs in front" },
-      "counter": { "caption": "The counter", "alt": "Wooden order counter with the Kub logo, a tall mirror and coffee shelves behind it" },
-      "service": { "caption": "Prep corner", "alt": "Preparation corner with dark brown cabinets, warm under-shelf light and the hot-drinks menu board" }
-    }
+  "featured": { "heading": "From the menu", "all": "Full menu" },
+  "craft": {
+    "heading": "One cup at a time",
+    "body": "Espresso is the base of almost everything we serve. We make it in front of you, cup by cup, and set the milk the way you like it.",
+    "link": "See the hot drinks"
+  },
+  "space": {
+    "heading": "Stay as long as you like",
+    "body": "Come on your own with a book, or with friends after work. Order something hot or iced, and take your time.",
+    "link": "Hours and address"
+  },
+  "nuts": {
+    "heading": "Add a flavour",
+    "body": "Pistachio, hazelnut, pecan, almond, walnut or peanut, added to any drink, hot or iced.",
+    "from": "from"
   },
   "visit": {
-    "heading": "Come by",
+    "heading": "Visit us",
     "addressLabel": "Address",
     "directions": "Open the map",
     "hoursCaption": "Opening hours",
@@ -48,13 +56,30 @@
     "timeCol": "Hours",
     "call": "Call",
     "whatsapp": "Message us on WhatsApp",
-    "contactLabel": "Talk to us"
+    "contactLabel": "Get in touch"
   },
-  "footer": { "signoff": "See you soon", "follow": "Follow us", "instagram": "Instagram", "facebook": "Facebook", "rights": "All rights reserved" },
-  "demo": {
-    "text": "Demo version: prices, hours and contact details are samples",
-    "dismiss": "Hide notice"
+  "strip": { "heading": "Share your seat with us", "link": "Follow us on Instagram" },
+  "menuPage": {
+    "heading": "Menu",
+    "intro": "Our hot and iced drinks, and the flavours you can add to any cup. Prices in Syrian pounds.",
+    "jump": "Menu sections",
+    "ctaHeading": "Seen something you like?",
+    "ctaBody": "Come and try it. We'll be here.",
+    "ctaButton": "Hours and address"
   },
+  "footer": {
+    "tagline": "Specialty coffee, made slowly, in Daraa.",
+    "visit": "Visit",
+    "hours": "Hours",
+    "contact": "Contact",
+    "follow": "Follow",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "rights": "All rights reserved",
+    "photos": "Photos from Unsplash"
+  },
+  "days": { "sat": "Saturday", "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday", "fri": "Friday" },
+  "alt": {},
   "notFound": {
     "title": "Page not found | كُوب – Kub Coffee",
     "heading": "We couldn't find that page",

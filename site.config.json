@@ -2,10 +2,6 @@
   "env": "staging",
   "siteUrl": "https://azure-duck-212941.hostingersite.com",
   "name": { "ar": "كُوب", "en": "Kub Coffee", "full": "كُوب – Kub Coffee" },
-  "tagline": {
-    "ar": "قهوة طيبة وقعدة حلوة، بدرعا.",
-    "en": "Good coffee and a good seat, in Daraa."
-  },
   "address": {
     "mapsUrl": "https://maps.app.goo.gl/WNXz17zu2BQNytkv7?g_st=aw",
     "streetAddress": "{{RESOLVE_FROM_MAPS}}",
@@ -31,38 +27,44 @@
     "facebook": "#demo-facebook"
   },
   "currency": { "code": "SYP", "label": { "ar": "ل.س", "en": "SYP" } },
+  "featured": [
+    { "item": "Espresso", "photo": "espresso" },
+    { "item": "Cappuccino", "photo": "cappuccino" },
+    { "item": "Iced Latte", "photo": "iced-latte" },
+    { "item": "Mocha", "photo": "mocha" }
+  ],
   "menu": {
     "demo": true,
     "sections": [
-      { "id": "hot", "ar": "مشروبات ساخنة", "en": "Hot Drinks", "items": [
-        { "en": "Espresso", "ar": "إسبريسو", "price": 150 },
-        { "en": "Doppio", "ar": "دوبيو", "price": 200 },
-        { "en": "Macchiato", "ar": "ماكياتو", "price": 180 },
-        { "en": "Americano", "ar": "أمريكانو", "price": 180 },
-        { "en": "Cappuccino", "ar": "كابتشينو", "price": 250 },
-        { "en": "Latte", "ar": "لاتيه", "price": 260 },
-        { "en": "Mocha", "ar": "موكا", "price": 280 },
-        { "en": "Hot Chocolate", "ar": "شوكولا ساخنة", "price": 250 },
-        { "en": "White Hot Chocolate", "ar": "شوكولا بيضاء ساخنة", "price": 270 }
+      { "id": "hot", "ar": "مشروبات ساخنة", "en": "Hot drinks", "photo": "cappuccino", "items": [
+        { "en": "Espresso", "ar": "إسبريسو", "price": 150, "desc": { "ar": "شوت مركّز وقصير", "en": "A short, concentrated shot" } },
+        { "en": "Doppio", "ar": "دوبيو", "price": 200, "desc": { "ar": "شوتين إسبريسو", "en": "A double espresso" } },
+        { "en": "Macchiato", "ar": "ماكياتو", "price": 180, "desc": { "ar": "إسبريسو مع لمسة رغوة حليب", "en": "Espresso marked with milk foam" } },
+        { "en": "Americano", "ar": "أمريكانو", "price": 180, "desc": { "ar": "إسبريسو مع مي سخنة", "en": "Espresso topped up with hot water" } },
+        { "en": "Cappuccino", "ar": "كابتشينو", "price": 250, "desc": { "ar": "إسبريسو وحليب ورغوة كثيفة", "en": "Espresso, steamed milk and thick foam" } },
+        { "en": "Latte", "ar": "لاتيه", "price": 260, "desc": { "ar": "إسبريسو مع حليب كتير ورغوة خفيفة", "en": "Espresso with plenty of milk and light foam" } },
+        { "en": "Mocha", "ar": "موكا", "price": 280, "desc": { "ar": "إسبريسو وشوكولا وحليب", "en": "Espresso, chocolate and milk" } },
+        { "en": "Hot Chocolate", "ar": "شوكولا ساخنة", "price": 250, "desc": { "ar": "شوكولا ذايبة بالحليب", "en": "Chocolate melted into milk" } },
+        { "en": "White Hot Chocolate", "ar": "شوكولا بيضاء ساخنة", "price": 270, "desc": { "ar": "شوكولا بيضاء بالحليب", "en": "White chocolate melted into milk" } }
       ]},
-      { "id": "iced", "ar": "مشروبات باردة", "en": "Iced Drinks", "items": [
-        { "en": "Iced Espresso", "ar": "إسبريسو مثلج", "price": 170 },
-        { "en": "Iced Doppio", "ar": "دوبيو مثلج", "price": 220 },
-        { "en": "Iced Macchiato", "ar": "ماكياتو مثلج", "price": 230 },
-        { "en": "Iced Americano", "ar": "أمريكانو مثلج", "price": 200 },
-        { "en": "Iced Cappuccino", "ar": "كابتشينو مثلج", "price": 270 },
-        { "en": "Iced Latte", "ar": "لاتيه مثلج", "price": 280 },
-        { "en": "Iced Mocha", "ar": "موكا مثلجة", "price": 300 },
-        { "en": "Iced White Mocha", "ar": "موكا بيضاء مثلجة", "price": 310 }
+      { "id": "iced", "ar": "مشروبات باردة", "en": "Iced drinks", "photo": "iced-latte", "items": [
+        { "en": "Iced Espresso", "ar": "إسبريسو مثلج", "price": 170, "desc": { "ar": "إسبريسو على تلج", "en": "Espresso over ice" } },
+        { "en": "Iced Doppio", "ar": "دوبيو مثلج", "price": 220, "desc": { "ar": "شوتين على تلج", "en": "A double shot over ice" } },
+        { "en": "Iced Macchiato", "ar": "ماكياتو مثلج", "price": 230, "desc": { "ar": "حليب بارد وإسبريسو فوقه", "en": "Cold milk with espresso poured on top" } },
+        { "en": "Iced Americano", "ar": "أمريكانو مثلج", "price": 200, "desc": { "ar": "إسبريسو ومي باردة وتلج", "en": "Espresso, cold water and ice" } },
+        { "en": "Iced Cappuccino", "ar": "كابتشينو مثلج", "price": 270, "desc": { "ar": "إسبريسو وحليب بارد ورغوة", "en": "Espresso, cold milk and foam" } },
+        { "en": "Iced Latte", "ar": "لاتيه مثلج", "price": 280, "desc": { "ar": "إسبريسو وحليب بارد على تلج", "en": "Espresso and cold milk over ice" } },
+        { "en": "Iced Mocha", "ar": "موكا مثلجة", "price": 300, "desc": { "ar": "إسبريسو وشوكولا وحليب بارد", "en": "Espresso, chocolate and cold milk" } },
+        { "en": "Iced White Mocha", "ar": "موكا بيضاء مثلجة", "price": 310, "desc": { "ar": "إسبريسو وشوكولا بيضاء وحليب بارد", "en": "Espresso, white chocolate and cold milk" } }
       ]},
-      { "id": "nuts", "ar": "نكهات المكسرات", "en": "Nut Flavours",
-        "note": { "ar": "أضف نكهة لأي مشروب", "en": "Add to any drink" }, "items": [
-        { "en": "Pecan", "ar": "بيكان", "price": 50 },
+      { "id": "nuts", "ar": "نكهات المكسرات", "en": "Nut flavours", "photo": "pistachio",
+        "note": { "ar": "زيدها على أي مشروب", "en": "Add one to any drink" }, "items": [
         { "en": "Pistachio", "ar": "فستق حلبي", "price": 60 },
-        { "en": "Peanut", "ar": "فول سوداني", "price": 40 },
-        { "en": "Almond", "ar": "لوز", "price": 50 },
         { "en": "Hazelnut", "ar": "بندق", "price": 50 },
-        { "en": "Walnut", "ar": "جوز", "price": 50 }
+        { "en": "Pecan", "ar": "بيكان", "price": 50 },
+        { "en": "Almond", "ar": "لوز", "price": 50 },
+        { "en": "Walnut", "ar": "جوز", "price": 50 },
+        { "en": "Peanut", "ar": "فول سوداني", "price": 40 }
       ]}
     ]
   }

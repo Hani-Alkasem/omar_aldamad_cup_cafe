@@ -1,4 +1,4 @@
-// Authored inline SVG: icons and the pendant lamps over the menu boards.
+// Authored inline SVG icons, one stroke weight.
 // Only icons with the `icon-directional` class flip in RTL.
 
 const icon = (body, cls = '') =>
@@ -12,6 +12,5 @@ export const icons = {
   instagram: icon('<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17 7h.01"/>'),
   facebook: icon('<path d="M14.5 8H17V4.5h-2.5A4 4 0 0 0 10.5 8.5V11H8v3.5h2.5V21H14v-6.5h2.6l.6-3.5H14V8.8c0-.5.3-.8.5-.8z"/>'),
   close: icon('<path d="M6 6l12 12M18 6L6 18"/>'),
+  menu: icon('<path d="M4 7h16M4 12h16M4 17h16"/>'),
 };
-
-export const lamp = `<svg class="lamp" viewBox="0 0 60 64" width="60" height="64" aria-hidden="true" focusable="false"><path d="M30 0v22" stroke="currentColor" stroke-width="2"/><path d="M8 44a22 22 0 0 1 44 0z" fill="currentColor"/><ellipse class="lamp-bulb" cx="30" cy="46" rx="12" ry="3"/></svg>`;
