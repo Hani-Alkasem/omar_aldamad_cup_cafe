@@ -86,20 +86,6 @@ for (const { name, path, dir } of PAGES) {
       await expect(page.locator('[data-status-line]').first()).toBeVisible();
       await expect(page.locator('[data-status-lead]').first()).not.toBeEmpty();
     });
-
-    test('mobile nav opens and closes', async ({ page }) => {
-      await page.setViewportSize({ width: 375, height: 844 });
-      await page.goto(path, { waitUntil: 'networkidle' });
-      const toggle = page.locator('.nav-toggle');
-      const nav = page.locator('#site-nav');
-      await expect(nav).toBeHidden();
-      await toggle.click();
-      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-      await expect(nav).toBeVisible();
-      await page.keyboard.press('Escape');
-      await expect(nav).toBeHidden();
-      await expect(toggle).toBeFocused();
-    });
   });
 
   test(`${name} without JavaScript keeps nav and content`, async ({ browser }) => {

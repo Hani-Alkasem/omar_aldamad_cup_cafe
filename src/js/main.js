@@ -4,29 +4,6 @@ import { spokenTime } from './time.js';
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-// Small-screen navigation: the nav collapses behind a toggle once JS is here.
-function initNav() {
-  const header = $('[data-header]');
-  const toggle = header && $('.nav-toggle', header);
-  if (!toggle) return;
-  const label = $('[data-nav-label]', toggle);
-  const setOpen = (open) => {
-    header.toggleAttribute('data-nav-open', open);
-    toggle.setAttribute('aria-expanded', String(open));
-    label.textContent = open ? toggle.dataset.labelClose : toggle.dataset.labelOpen;
-  };
-  header.setAttribute('data-nav-ready', '');
-  toggle.hidden = false;
-  toggle.addEventListener('click', () => setOpen(toggle.getAttribute('aria-expanded') !== 'true'));
-  $$('.site-nav a', header).forEach((a) => a.addEventListener('click', () => setOpen(false)));
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && header.hasAttribute('data-nav-open')) {
-      setOpen(false);
-      toggle.focus();
-    }
-  });
-}
-
 // Open-now line, computed in the café's time zone rather than the visitor's.
 const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const toMinutes = (hhmm) => (hhmm === '23:59' ? 1440 : Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3)));
@@ -98,6 +75,5 @@ function initDemoBanner() {
   });
 }
 
-initNav();
 initStatus();
 initDemoBanner();

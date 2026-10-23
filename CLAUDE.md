@@ -1,6 +1,6 @@
 # Kub Coffee (كُوب) — website
 
-Marketing site for **كُوب – Kub Coffee**, a café in Daraa, Syria. The brand source is the interior design deck `COFFE CUP.pdf` (3D MAX / AutoCAD renders by Omar Al Masalmeh). Target host: Hostinger (LiteSpeed).
+Marketing site for **كُوب – Kub Coffee**, a café in Daraa, Syria. From `COFFE CUP.pdf` only the **logo (the word كُوب)** and the **colour palette** are used; everything else is a fresh design in the manner of premium specialty brands (Blue Bottle as the reference for calm, craft and spacing; never copy any brand's logo, colours or wording). Target host: Hostinger (LiteSpeed).
 
 ## Brand
 
@@ -33,20 +33,15 @@ Reference components to `var(--token)`, never raw hex. A dark theme, if added, m
 
 ### Typography
 
-- Arabic: **IBM Plex Sans Arabic** (fallback: Tajawal). Latin: **Inter**.
-- Hand-lettered notes: **Aref Ruqaa** 400, for one-line asides only (the tagline, section notes, the footer sign-off). Never use it for headings, menu items, prices, hours or buttons. The build subsets it to the characters used, with `pyftsubset` (`pip install fonttools brotli`); without that tool it ships the full file.
-- Self-host `woff2` subsets, `font-display: swap`, preload only the weights the hero uses.
-- Body ≥ 16px, line-height ≥ 1.6 for Arabic (taller ascenders and descenders than Latin).
-- Never set `letter-spacing` on Arabic text. It breaks the joins between letters.
-- Font budget: about 139 KB on `/` and 97 KB on `/en/`. Check the weight budget in DESIGN.md before adding a weight.
+- One bilingual family: **IBM Plex Sans Arabic** 400/600 and **IBM Plex Sans** (Latin) 400/500, so Arabic and English names sit together on every menu line.
+- Self-host `woff2` subsets, `font-display: swap`, preload only the hero weight. Fonts ≈ 112 KB on `/`, ≈ 93 KB on `/en/`.
+- Body ≥ 16px, line-height ≥ 1.6 for Arabic. Never set `letter-spacing` on Arabic text.
 
-## Voice and the "made by people" rule
+## Look and voice
 
-- Write the way people in Daraa speak: short, warm and colloquial ("مفتوحين هلّق، لـ ١١ بالليل", "تعا لعنّا"). English stays plain and casual.
-- Say times as spoken: "٨ الصبح", "٢ الظهر", "نص الليل" / "8am", "midnight". Use `src/js/time.js`.
-- Don't use em dashes in copy, grey lede paragraphs under every heading, or slogans like "in the heart of".
-- Don't use pills, badges or chips; one solid button per area, and text links for everything else.
-- Use the café's own material first. The first viewport is the real hand-drawn mural, cut out of the renders by `scripts/images.mjs`. Never replace it with redrawn vector clip-art or generated illustrations.
+- Calm and premium: warm paper ground (`#F6F1E7`, cream lifted toward white), large photography, thin rules, lots of space, one solid button per area and underlined text links for the rest.
+- Photography comes from Unsplash (Unsplash License) via `photos.json` → `npm run photos`; every photo needs hand-written alt text in `src/i18n/*.json` → `alt`. Stock interior photos are not Kub: replace hero, space and counter with real photos before production.
+- Copy: short, warm Levantine Arabic and plain English; times as spoken (`src/js/time.js`). No em dashes, no slogans like "in the heart of", no invented claims (awards, ratings, sourcing).
 
 ## RTL and bilingual rules
 
@@ -61,23 +56,23 @@ Reference components to `var(--token)`, never raw hex. A dark theme, if added, m
 - Forms: `dir="auto"` on free-text inputs, labels always visible (no placeholder-only labels).
 - Test every page in both directions at 320, 768 and 1280px.
 
-## Menu (from the in-store boards)
+## Menu
 
 - **Hot Drinks:** Espresso, Latte, Mocha, Cappuccino, Americano, Hot Chocolate, Doppio, White Hot Chocolate, Macchiato.
 - **Iced Drinks:** Iced Espresso, Iced Latte, Iced Mocha, Iced Cappuccino, Iced Americano, Iced Doppio, Iced White Mocha, Iced Macchiato.
 - **Nut Flavours:** Pecan, Pistachio, Peanut, Almond, Hazelnut, Walnut.
 
-Prices, hours, address, phone and geo coordinates are **not known yet**. Ask; never invent them.
+Prices, hours, phone and social links are **demo values** flagged `"demo": true` in `site.config.json`; address and coordinates come from the Maps link. `scripts/check.mjs` blocks production until all are real.
 
 ## Build requirements
 
 - Semantic HTML5, one stylesheet, vanilla JS < 10 KB, no framework unless asked.
-- Hero above the fold: name, one-line value proposition, today's hours, address + "Get directions", "View menu" CTA.
+- Pages: Home (`/`, `/en/`) and Menu (`/menu/`, `/en/menu/`) from `src/templates/layout.html` + `home.html` / `menu.html`.
+- Home hero: full-bleed photo, one-line promise as the `<h1>`, "See the menu" + "Visit us", open-now line. The brand name lives in the logo and `<title>`.
 - One `<h1>` per page; headings never skip levels.
 - Touch targets ≥ 44×44px with ≥ 8px spacing; no horizontal scroll at 320px; never disable zoom.
-- Images: AVIF/WebP with `srcset` (480/960/1600w), explicit `width`/`height`, `loading="lazy"` below the fold; hero ≤ 120 KB, preloaded, `fetchpriority="high"`.
+- Images: AVIF/WebP/JPEG with `srcset` (480/960/1600w; hero 640/1280/2000w), explicit `width`/`height`, `loading="lazy"` below the fold; hero preloaded with `fetchpriority="high"`.
 - Alt text describes the scene ("Kub bar counter with three-group espresso machine and hanging plants"); decorative images use `alt=""`. Never reuse auto-generated alt text.
-- The renders are CGI: label gallery images "Concept" until real photos replace them.
 - JSON-LD `CafeOrCoffeeShop` with `name`, `address`, `geo`, `telephone`, `openingHoursSpecification`, `hasMenu`, `servesCuisine`, `sameAs`, kept identical to the Google Business Profile.
 - `sitemap.xml`, `robots.txt`, `.htaccess` with LiteSpeed cache, Brotli/gzip, HTTPS redirect and long-cache headers for `/assets/`.
 - Targets: Lighthouse mobile ≥ 95 in all four categories; LCP < 2.5s, CLS < 0.1, INP < 200ms.

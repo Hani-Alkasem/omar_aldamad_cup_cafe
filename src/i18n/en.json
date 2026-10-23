@@ -7,8 +7,19 @@
     "menuDescription": "The full Kub menu: hot and iced drinks and nut flavours, with prices in Syrian pounds."
   },
   "skip": "Skip to content",
-  "nav": { "label": "Main menu", "menu": "Menu", "about": "About", "visit": "Visit", "open": "Open menu", "close": "Close menu" },
-  "langSwitch": { "label": "العربية", "hreflang": "ar", "title": "اقرأ الصفحة بالعربية" },
+  "nav": {
+    "label": "Main menu",
+    "menu": "Menu",
+    "about": "About",
+    "visit": "Visit",
+    "open": "Open menu",
+    "close": "Close menu"
+  },
+  "langSwitch": {
+    "label": "العربية",
+    "hreflang": "ar",
+    "title": "اقرأ الصفحة بالعربية"
+  },
   "demo": {
     "text": "Demo version: prices, hours and contact details are samples; photos are from Unsplash",
     "dismiss": "Hide notice"
@@ -31,7 +42,10 @@
     "text": "A good cup starts with the details: the right grind, a measured shot, milk steamed slowly. The rest is a good seat.",
     "link": "About Kub"
   },
-  "featured": { "heading": "From the menu", "all": "Full menu" },
+  "featured": {
+    "heading": "From the menu",
+    "all": "Full menu"
+  },
   "craft": {
     "heading": "One cup at a time",
     "body": "Espresso is the base of almost everything we serve. We make it in front of you, cup by cup, and set the milk the way you like it.",
@@ -58,7 +72,10 @@
     "whatsapp": "Message us on WhatsApp",
     "contactLabel": "Get in touch"
   },
-  "strip": { "heading": "Share your seat with us", "link": "Follow us on Instagram" },
+  "strip": {
+    "heading": "Share your seat with us",
+    "link": "Follow us on Instagram"
+  },
   "menuPage": {
     "heading": "Menu",
     "intro": "Our hot and iced drinks, and the flavours you can add to any cup. Prices in Syrian pounds.",
@@ -78,8 +95,31 @@
     "rights": "All rights reserved",
     "photos": "Photos from Unsplash"
   },
-  "days": { "sat": "Saturday", "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday", "fri": "Friday" },
-  "alt": {},
+  "days": {
+    "sat": "Saturday",
+    "sun": "Sunday",
+    "mon": "Monday",
+    "tue": "Tuesday",
+    "wed": "Wednesday",
+    "thu": "Thursday",
+    "fri": "Friday"
+  },
+  "alt": {
+    "hero": "A barista pouring milk into espresso to draw a heart in a white cup",
+    "craft": "A portafilter of ground coffee beside a latte on a wooden table",
+    "space": "A window-side wooden table with a coffee, a notebook and a plant",
+    "counter": "A café counter with shelves of coffee gear and an espresso machine",
+    "beans": "Roasted coffee beans in a burlap sack",
+    "together": "Friends holding latte-art cups over a table",
+    "hot-chocolate": "Hot chocolate being poured into a ceramic cup",
+    "espresso": "A shot of espresso in a glass on a saucer",
+    "cappuccino": "A cappuccino with leaf latte art on a white saucer",
+    "iced-latte": "An iced latte in a glass on a wooden table",
+    "latte": "Latte-art cups on a table among plants",
+    "flavours": "Three glasses of coffee in different shades with spoons on a wooden table",
+    "hot-menu": "A leaf latte seen from above on a weathered wooden table",
+    "iced-menu": "Iced coffee with milk in a tall glass"
+  },
   "notFound": {
     "title": "Page not found | كُوب – Kub Coffee",
     "heading": "We couldn't find that page",

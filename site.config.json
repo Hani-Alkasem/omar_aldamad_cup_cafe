@@ -31,12 +31,12 @@
     { "item": "Espresso", "photo": "espresso" },
     { "item": "Cappuccino", "photo": "cappuccino" },
     { "item": "Iced Latte", "photo": "iced-latte" },
-    { "item": "Mocha", "photo": "mocha" }
+    { "item": "Latte", "photo": "latte" }
   ],
   "menu": {
     "demo": true,
     "sections": [
-      { "id": "hot", "ar": "مشروبات ساخنة", "en": "Hot drinks", "photo": "cappuccino", "items": [
+      { "id": "hot", "ar": "مشروبات ساخنة", "en": "Hot drinks", "photo": "hot-menu", "items": [
         { "en": "Espresso", "ar": "إسبريسو", "price": 150, "desc": { "ar": "شوت مركّز وقصير", "en": "A short, concentrated shot" } },
         { "en": "Doppio", "ar": "دوبيو", "price": 200, "desc": { "ar": "شوتين إسبريسو", "en": "A double espresso" } },
         { "en": "Macchiato", "ar": "ماكياتو", "price": 180, "desc": { "ar": "إسبريسو مع لمسة رغوة حليب", "en": "Espresso marked with milk foam" } },
@@ -47,7 +47,7 @@
         { "en": "Hot Chocolate", "ar": "شوكولا ساخنة", "price": 250, "desc": { "ar": "شوكولا ذايبة بالحليب", "en": "Chocolate melted into milk" } },
         { "en": "White Hot Chocolate", "ar": "شوكولا بيضاء ساخنة", "price": 270, "desc": { "ar": "شوكولا بيضاء بالحليب", "en": "White chocolate melted into milk" } }
       ]},
-      { "id": "iced", "ar": "مشروبات باردة", "en": "Iced drinks", "photo": "iced-latte", "items": [
+      { "id": "iced", "ar": "مشروبات باردة", "en": "Iced drinks", "photo": "iced-menu", "items": [
         { "en": "Iced Espresso", "ar": "إسبريسو مثلج", "price": 170, "desc": { "ar": "إسبريسو على تلج", "en": "Espresso over ice" } },
         { "en": "Iced Doppio", "ar": "دوبيو مثلج", "price": 220, "desc": { "ar": "شوتين على تلج", "en": "A double shot over ice" } },
         { "en": "Iced Macchiato", "ar": "ماكياتو مثلج", "price": 230, "desc": { "ar": "حليب بارد وإسبريسو فوقه", "en": "Cold milk with espresso poured on top" } },
@@ -57,7 +57,7 @@
         { "en": "Iced Mocha", "ar": "موكا مثلجة", "price": 300, "desc": { "ar": "إسبريسو وشوكولا وحليب بارد", "en": "Espresso, chocolate and cold milk" } },
         { "en": "Iced White Mocha", "ar": "موكا بيضاء مثلجة", "price": 310, "desc": { "ar": "إسبريسو وشوكولا بيضاء وحليب بارد", "en": "Espresso, white chocolate and cold milk" } }
       ]},
-      { "id": "nuts", "ar": "نكهات المكسرات", "en": "Nut flavours", "photo": "pistachio",
+      { "id": "nuts", "ar": "نكهات المكسرات", "en": "Nut flavours", "photo": "flavours",
         "note": { "ar": "زيدها على أي مشروب", "en": "Add one to any drink" }, "items": [
         { "en": "Pistachio", "ar": "فستق حلبي", "price": 60 },
         { "en": "Hazelnut", "ar": "بندق", "price": 50 },

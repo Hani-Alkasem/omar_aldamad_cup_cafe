@@ -5,7 +5,7 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
-    "photos": "node scripts/photos.mjs && node scripts/images.mjs",
+    "photos": "NODE_USE_ENV_PROXY=1 node scripts/photos.mjs && node scripts/images.mjs",
     "images": "node scripts/images.mjs",
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",

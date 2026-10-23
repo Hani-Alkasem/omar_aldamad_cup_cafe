@@ -104,13 +104,13 @@ function hourGroups(t, lang) {
 }
 
 const SIZES = {
-  hero: '100vw',
+  hero: '(orientation: portrait) 170vh, 100vw',
   tile: '(min-width: 64rem) 17rem, 46vw',
   feature: '(min-width: 64rem) 36rem, 100vw',
   side: '(min-width: 64rem) 30rem, 100vw',
   strip: '(min-width: 64rem) 23rem, 33vw',
 };
-const SLOT_SIZES = { hero: 'hero', craft: 'feature', space: 'feature', counter: 'feature', pistachio: 'side', beans: 'strip', together: 'strip', 'hot-chocolate': 'strip' };
+const SLOT_SIZES = { hero: 'hero', craft: 'feature', space: 'feature', counter: 'feature', flavours: 'side', 'hot-menu': 'side', 'iced-menu': 'side', beans: 'strip', together: 'strip', 'hot-chocolate': 'strip' };
 function picture(slot, lang, sizes, { priority = false } = {}) {
   const alt = i18n[lang].alt[slot];
   const meta = imgManifest.images[slot];
@@ -274,7 +274,6 @@ for (const lang of ['ar', 'en']) {
       pinIcon: icons.pin,
       phoneIcon: icons.phone,
       chatIcon: icons.chat,
-      menuIcon: icons.menu,
       callLabel: t.visit.call.replace(/ /g, '\u00a0'),
       telHref: config.contact.phone.replace(/[^\d+]/g, ''),
       phoneDisplay: (lang === 'ar' ? arabicDigits(config.contact.phone) : config.contact.phone).replace(/ /g, '\u00a0'),
