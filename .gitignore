@@ -1,6 +1,10 @@
 # Impeccable engine binaries and working files
 .claude/skills/impeccable/scripts/bin/
-.impeccable/
+.impeccable/review/
+.impeccable/questions/
+.impeccable/build/
+.impeccable/mocks/
+.impeccable/*.local.json
 
 # Playwright / QA output
 test-results/
@@ -12,3 +16,10 @@ screenshots/
 Thumbs.db
 .vscode/
 .idea/
+
+# Build
+node_modules/
+dist/
+dist-prod/
+.lighthouseci/
+src/assets/img/

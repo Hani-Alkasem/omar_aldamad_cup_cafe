@@ -1,0 +1,112 @@
+{
+  "locale": "en-GB",
+  "title": "كُوب – Kub Coffee | Specialty coffee in Daraa",
+  "description": "Kub is a cosy café in Daraa: hanging plants, warm wood and specialty coffee. See the menu and opening hours, and find your way to us.",
+  "skip": "Skip to content",
+  "nav": {
+    "label": "Page sections",
+    "menu": "Menu",
+    "gallery": "The space",
+    "visit": "Visit"
+  },
+  "langSwitch": {
+    "label": "العربية",
+    "hreflang": "ar",
+    "title": "اقرأ الصفحة بالعربية"
+  },
+  "hero": {
+    "viewMenu": "View menu",
+    "directions": "Get directions",
+    "hoursSummary": "Opening hours",
+    "imageAlt": "Kub's glass entrance with the illuminated logo sign and wooden seating inside"
+  },
+  "status": {
+    "openUntil": "Open now · until {time}",
+    "closedOpens": "Closed · opens {day} at {time}",
+    "today": "today",
+    "tomorrow": "tomorrow"
+  },
+  "days": {
+    "sat": "Saturday",
+    "sun": "Sunday",
+    "mon": "Monday",
+    "tue": "Tuesday",
+    "wed": "Wednesday",
+    "thu": "Thursday",
+    "fri": "Friday"
+  },
+  "menu": {
+    "heading": "The menu",
+    "intro": "Straight from the boards above the bar. Prices in Syrian pounds.",
+    "tablistLabel": "Menu sections"
+  },
+  "values": {
+    "heading": "Natural and cosy",
+    "natural": "Natural",
+    "cosy": "Cosy",
+    "body": "Hanging plants, oak, soft olive benches and baristas drawn on the wall. Come for a coffee and take your time."
+  },
+  "gallery": {
+    "heading": "Inside Kub",
+    "note": "These are 3D concept renders of the space. Real photos are coming soon.",
+    "concept": "Concept",
+    "zones": {
+      "entrance": {
+        "caption": "Entrance",
+        "alt": "Kub's glass entrance with the illuminated logo sign and wooden seating inside"
+      },
+      "seating": {
+        "caption": "Seating hall",
+        "alt": "Long seating hall with oak tables, cream chairs and black pendant lamps beneath the menu boards"
+      },
+      "featureWall": {
+        "caption": "Olive wall",
+        "alt": "Angled olive feature wall lit by a lamp, with the Kub logo, coffee-tool drawings and a green armchair in front"
+      },
+      "bar": {
+        "caption": "Coffee bar",
+        "alt": "Coffee bar with a three-group espresso machine, grinder, wooden shelves and hanging plants"
+      },
+      "mural": {
+        "caption": "Mural wall",
+        "alt": "Black line-art mural of baristas making coffee above an olive bench and plants, with ring-back chairs in front"
+      },
+      "counter": {
+        "caption": "Order counter",
+        "alt": "Wooden order counter with the Kub logo, a tall mirror and coffee shelves behind it"
+      },
+      "service": {
+        "caption": "Prep corner",
+        "alt": "Preparation corner with dark brown cabinets, warm under-shelf light and the hot-drinks menu board"
+      }
+    }
+  },
+  "visit": {
+    "heading": "Visit us",
+    "addressLabel": "Address",
+    "directions": "Open the map",
+    "hoursCaption": "Opening hours",
+    "dayCol": "Day",
+    "timeCol": "Hours",
+    "call": "Call us",
+    "whatsapp": "Message us on WhatsApp",
+    "contactLabel": "Get in touch"
+  },
+  "footer": {
+    "follow": "Follow us",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "rights": "All rights reserved"
+  },
+  "demo": {
+    "text": "Demo version — prices and contact details are samples",
+    "dismiss": "Hide notice"
+  },
+  "notFound": {
+    "title": "Page not found | كُوب – Kub Coffee",
+    "heading": "We couldn't find that page",
+    "body": "The link may be old. Head back to the home page and have a look at the menu.",
+    "home": "Home page"
+  },
+  "city": "Daraa, Syria"
+}

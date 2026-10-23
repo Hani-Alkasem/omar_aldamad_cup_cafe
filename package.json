@@ -1,0 +1,24 @@
+{
+  "name": "kub-coffee-site",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "images": "node scripts/images.mjs",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs",
+    "validate": "html-validate \"dist/**/*.html\"",
+    "test": "npm run build && npm run validate && playwright test",
+    "lhci": "node scripts/build.mjs --env=production --out=dist-prod && lhci autorun",
+    "deploy:staging": "node scripts/deploy.mjs staging",
+    "deploy:production": "node scripts/deploy.mjs production"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.10.2",
+    "@lhci/cli": "0.14.0",
+    "@playwright/test": "1.56.1",
+    "html-validate": "9.5.5",
+    "sharp": "0.34.4"
+  }
+}

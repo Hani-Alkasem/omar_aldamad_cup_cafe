@@ -1,0 +1,69 @@
+{
+  "env": "staging",
+  "siteUrl": "https://azure-duck-212941.hostingersite.com",
+  "name": { "ar": "كُوب", "en": "Kub Coffee", "full": "كُوب – Kub Coffee" },
+  "tagline": {
+    "ar": "قهوة مختصة في قلب درعا — طبيعية ودافئة",
+    "en": "Specialty coffee in the heart of Daraa — natural and cosy"
+  },
+  "address": {
+    "mapsUrl": "https://maps.app.goo.gl/WNXz17zu2BQNytkv7?g_st=aw",
+    "streetAddress": "{{RESOLVE_FROM_MAPS}}",
+    "addressLocality": "Daraa",
+    "addressCountry": "SY",
+    "geo": { "lat": "{{RESOLVE_FROM_MAPS}}", "lng": "{{RESOLVE_FROM_MAPS}}" }
+  },
+  "timezone": "Asia/Damascus",
+  "hours": {
+    "demo": true,
+    "sat": ["08:00", "23:00"], "sun": ["08:00", "23:00"], "mon": ["08:00", "23:00"],
+    "tue": ["08:00", "23:00"], "wed": ["08:00", "23:00"], "thu": ["08:00", "23:59"],
+    "fri": ["14:00", "23:59"]
+  },
+  "contact": {
+    "demo": true,
+    "phone": "+963 999 000 000",
+    "whatsapp": "+963999000000"
+  },
+  "social": {
+    "demo": true,
+    "instagram": "#demo-instagram",
+    "facebook": "#demo-facebook"
+  },
+  "currency": { "code": "SYP", "label": { "ar": "ل.س", "en": "SYP" } },
+  "menu": {
+    "demo": true,
+    "sections": [
+      { "id": "hot", "ar": "مشروبات ساخنة", "en": "Hot Drinks", "items": [
+        { "en": "Espresso", "ar": "إسبريسو", "price": 150 },
+        { "en": "Doppio", "ar": "دوبيو", "price": 200 },
+        { "en": "Macchiato", "ar": "ماكياتو", "price": 180 },
+        { "en": "Americano", "ar": "أمريكانو", "price": 180 },
+        { "en": "Cappuccino", "ar": "كابتشينو", "price": 250 },
+        { "en": "Latte", "ar": "لاتيه", "price": 260 },
+        { "en": "Mocha", "ar": "موكا", "price": 280 },
+        { "en": "Hot Chocolate", "ar": "شوكولا ساخنة", "price": 250 },
+        { "en": "White Hot Chocolate", "ar": "شوكولا بيضاء ساخنة", "price": 270 }
+      ]},
+      { "id": "iced", "ar": "مشروبات باردة", "en": "Iced Drinks", "items": [
+        { "en": "Iced Espresso", "ar": "إسبريسو مثلج", "price": 170 },
+        { "en": "Iced Doppio", "ar": "دوبيو مثلج", "price": 220 },
+        { "en": "Iced Macchiato", "ar": "ماكياتو مثلج", "price": 230 },
+        { "en": "Iced Americano", "ar": "أمريكانو مثلج", "price": 200 },
+        { "en": "Iced Cappuccino", "ar": "كابتشينو مثلج", "price": 270 },
+        { "en": "Iced Latte", "ar": "لاتيه مثلج", "price": 280 },
+        { "en": "Iced Mocha", "ar": "موكا مثلجة", "price": 300 },
+        { "en": "Iced White Mocha", "ar": "موكا بيضاء مثلجة", "price": 310 }
+      ]},
+      { "id": "nuts", "ar": "نكهات المكسرات", "en": "Nut Flavours",
+        "note": { "ar": "أضف نكهة لأي مشروب", "en": "Add to any drink" }, "items": [
+        { "en": "Pecan", "ar": "بيكان", "price": 50 },
+        { "en": "Pistachio", "ar": "فستق حلبي", "price": 60 },
+        { "en": "Peanut", "ar": "فول سوداني", "price": 40 },
+        { "en": "Almond", "ar": "لوز", "price": 50 },
+        { "en": "Hazelnut", "ar": "بندق", "price": 50 },
+        { "en": "Walnut", "ar": "جوز", "price": 50 }
+      ]}
+    ]
+  }
+}
