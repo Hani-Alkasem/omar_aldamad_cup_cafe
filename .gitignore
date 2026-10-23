@@ -1,0 +1,14 @@
+# Impeccable engine binaries and working files
+.claude/skills/impeccable/scripts/bin/
+.impeccable/
+
+# Playwright / QA output
+test-results/
+playwright-report/
+screenshots/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
