@@ -114,6 +114,13 @@ export class DiscoveryController {
     return this.jobs.listRuns(id, q.limit);
   }
 
+  @Delete('assets/:id/discovery/ssh-host-key')
+  @Roles('admin', 'dc_technician')
+  @ApiOperation({ summary: 'Accept a changed SSH host key after a confirmed reinstall; the next run records the new key' })
+  acceptHostKey(@Param('id', UuidPipe) id: string, @CurrentUser() user: AuthUser, @RequestId() requestId?: string) {
+    return this.jobs.acceptHostKey(id, { user, requestId });
+  }
+
   @Get('discovery/runs/:id')
   run(@Param('id', UuidPipe) id: string) {
     return this.jobs.getRun(id);

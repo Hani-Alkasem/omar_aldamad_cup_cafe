@@ -1,5 +1,6 @@
 import { Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { PROTOCOL_KINDS, type CreateJobInput, type UpdateJobInput } from '@itam/shared';
+import { Prisma } from '@prisma/client';
 import parser from 'cron-parser';
 import { sqlStateOf, toDomainError } from '../../common/db-errors';
 import { conflict, notFound, unprocessable } from '../../common/errors';
@@ -230,6 +231,25 @@ export class JobsService implements OnApplicationBootstrap {
       await this.audit.record(tx, { entity: 'discovery_run', entityId: run.id, action: 'create', after: { jobId, trigger }, userId: ctx.userId, requestId: ctx.requestId });
       if (enqueue) await this.queue.enqueueRun(jobId, run.id);
       return this.getRun(run.id, tx);
+    }, TX_OPTIONS);
+  }
+
+  /**
+   * After a confirmed reinstall: forget the recorded SSH host key so the next run records the new one.
+   * Until then every run reports the host as a conflict and leaves the asset untouched.
+   */
+  async acceptHostKey(assetId: string, ctx: Ctx) {
+    return this.prisma.$transaction(async (tx) => {
+      const a = await tx.assets.findUnique({ where: { id: assetId }, select: { custom_fields: true } });
+      if (!a) throw notFound('Asset', assetId);
+      const custom = (a.custom_fields ?? {}) as Record<string, unknown>;
+      const discovery = { ...((custom.discovery ?? {}) as Record<string, unknown>) };
+      const previous = discovery.sshHostKey ?? null;
+      if (!previous) return { assetId, cleared: null };
+      delete discovery.sshHostKey;
+      await tx.assets.update({ where: { id: assetId }, data: { custom_fields: { ...custom, discovery } as Prisma.InputJsonObject } });
+      await this.audit.record(tx, { entity: 'asset', entityId: assetId, action: 'update', before: { sshHostKey: previous }, after: { sshHostKey: null }, userId: ctx.user.id, requestId: ctx.requestId });
+      return { assetId, cleared: previous };
     }, TX_OPTIONS);
   }
 

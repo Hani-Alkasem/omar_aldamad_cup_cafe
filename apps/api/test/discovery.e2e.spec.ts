@@ -221,9 +221,16 @@ describe('Discovery (e2e)', () => {
       // Host key changed: flagged, not applied.
       const rekey = (await submit(run2.id, { scannedDelta: 0, hosts: [{ ...h, ip: '10.77.0.5', sshHostKey: `SHA256:${'B'.repeat(43)}` }] }).expect(200)).body;
       expect(rekey.conflict).toBe(1);
+      // A human confirms the reinstall; the next sighting records the new key instead of conflicting.
+      expect((await api().delete(`/api/v1/assets/${assetId}/discovery/ssh-host-key`).set(as('dc_technician')).expect(200)).body.cleared).toBe(h.sshHostKey);
+      await api().post(`/api/v1/internal/discovery/runs/${run2.id}/finish`).set(worker()).send({ status: 'succeeded' }).expect(200);
+      const { run: run3 } = await startRun(j.id);
+      const accepted = (await submit(run3.id, { scannedDelta: 1, hosts: [{ ...h, memoryGb: 512, sshHostKey: `SHA256:${'B'.repeat(43)}` }] }).expect(200)).body;
+      expect(accepted.updated).toBe(1);
+
       const audit = await prisma.audit_logs.findMany({ where: { entity_id: assetId }, orderBy: { id: 'asc' }, select: { action: true } });
-      // create (asset row), update (first ports + components), update (RAM change on run 2).
-      expect(audit.map((a) => a.action)).toEqual(['create', 'update', 'update']);
+      // create (asset row), update (first ports + components), update (RAM on run 2), update (key cleared), update (new key recorded).
+      expect(audit.map((a) => a.action)).toEqual(['create', 'update', 'update', 'update', 'update']);
     });
 
     it('re-claims a run whose worker died, and the sweeper fails abandoned runs', async () => {
