@@ -13,7 +13,8 @@
     "seed": "tsx prisma/seed.ts",
     "token": "tsx scripts/dev-token.ts",
     "dispatcher": "node --enable-source-maps dist/dispatcher.js",
-    "cli": "node dist/cli.js"
+    "cli": "node dist/cli.js",
+    "lab-idp": "tsx scripts/lab-idp.ts"
   },
   "dependencies": {
     "@itam/shared": "workspace:*",
@@ -25,6 +26,7 @@
     "bullmq": "5.34.6",
     "cron-parser": "4.9.0",
     "ipaddr.js": "2.2.0",
+    "jose": "5.9.6",
     "jsonwebtoken": "9.0.2",
     "prisma": "6.2.1",
     "reflect-metadata": "0.2.2",

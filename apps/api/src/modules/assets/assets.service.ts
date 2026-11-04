@@ -7,6 +7,7 @@ import { PrismaService, TX_OPTIONS, type Tx } from '../../common/prisma.service'
 import type { AuthUser } from '../auth/auth.types';
 import { AuditService } from '../audit/audit.service';
 import { RackPlacementService } from '../racks/rack-placement.service';
+import { ScopeService } from '../sessions/scope.service';
 
 export interface AssetDto {
   id: string;
@@ -90,6 +91,7 @@ export class AssetsService {
     private readonly prisma: PrismaService,
     private readonly placement: RackPlacementService,
     private readonly audit: AuditService,
+    private readonly scope: ScopeService,
   ) {}
 
   async list(q: ListAssetsQuery) {
@@ -128,6 +130,7 @@ export class AssetsService {
 
   async create(input: CreateAssetInput, raw: Record<string, unknown>, user: AuthUser, requestId?: string): Promise<AssetDto> {
     return this.prisma.$transaction(async (tx) => {
+      await this.scope.assertRack(tx, user, input.rackId);
       const data = await applyModelDefaults(tx, input, raw);
       if (data.rackId) await this.placement.assertPlaceable(tx, { rackId: data.rackId, startU: data.startU, sizeU: data.sizeU ?? 1, face: data.face, depth: data.depth ?? 'full' });
 
@@ -144,6 +147,9 @@ export class AssetsService {
       if (locked.length === 0) throw notFound('Asset', id);
       const current = await tx.assets.findUniqueOrThrow({ where: { id } });
       const before = toAssetDto(current);
+      // Scoped users must own the asset where it is now, and where it is going.
+      await this.scope.assertAssets(tx, user, [id]);
+      if (patch.rackId !== undefined && patch.rackId !== current.rack_id) await this.scope.assertRack(tx, user, patch.rackId);
 
       // Moving out of a rack clears the U position unless the caller supplied a new one.
       const unracking = patch.rackId === null;
@@ -180,6 +186,7 @@ export class AssetsService {
     await this.prisma.$transaction(async (tx) => {
       const current = await tx.assets.findUnique({ where: { id } });
       if (!current) throw notFound('Asset', id);
+      await this.scope.assertAssets(tx, user, [id]);
       await tx.assets.delete({ where: { id } });
       await this.audit.record(tx, { entity: 'asset', entityId: id, action: 'delete', before: toAssetDto(current), userId: user.id, requestId });
     }, TX_OPTIONS);

@@ -16,6 +16,7 @@ import { PrismaService, TX_OPTIONS, type Tx } from '../../common/prisma.service'
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/auth.types';
 import { depreciate } from './depreciation';
+import { ScopeService } from '../sessions/scope.service';
 
 type Ctx = { user: AuthUser; requestId?: string };
 
@@ -34,6 +35,7 @@ export class LifecycleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly scope: ScopeService,
   ) {}
 
   private async assertAssets(tx: Tx, ids: string[]) {
@@ -281,6 +283,7 @@ export class LifecycleService {
   async createMaintenance(assetId: string, input: CreateMaintenanceInput, ctx: Ctx) {
     return this.prisma.$transaction(async (tx) => {
       if (!(await tx.assets.findUnique({ where: { id: assetId }, select: { id: true } }))) throw notFound('Asset', assetId);
+      await this.scope.assertAssets(tx, ctx.user, [assetId]);
       const m = await tx.maintenance_schedules.create({
         data: { asset_id: assetId, title: input.title, interval_days: input.intervalDays, first_due_on: toDate(input.firstDueOn)!, notes: input.notes },
       });
@@ -296,6 +299,7 @@ export class LifecycleService {
     return this.prisma.$transaction(async (tx) => {
       const before = await tx.maintenance_schedules.findUnique({ where: { id } });
       if (!before) throw notFound('Maintenance schedule', id);
+      await this.scope.assertAssets(tx, ctx.user, [before.asset_id]);
       const m = await tx.maintenance_schedules.update({ where: { id }, data: { last_done_on: toDate(doneOn)! } });
       const dto = this.maintenanceDto(m);
       await this.audit.record(tx, { entity: 'maintenance', entityId: id, action: 'update', before: this.maintenanceDto(before), after: dto, userId: ctx.user.id, requestId: ctx.requestId });

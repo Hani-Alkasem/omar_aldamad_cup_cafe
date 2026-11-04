@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { PrismaService } from '../../common/prisma.service';
 import type { RequestWithUser } from './auth.types';
 import { IS_PUBLIC, ROLES } from './decorators';
+import { SESSION_PREFIX, SessionsService } from '../sessions/sessions.service';
 
 /**
  * Bearer JWT (HS256) → active user → role check.
@@ -17,6 +18,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
+    private readonly sessions: SessionsService,
   ) {
     const secret = process.env.JWT_SECRET;
     if (!secret || secret.length < 32) throw new Error('JWT_SECRET must be set to at least 32 characters');
@@ -50,6 +52,14 @@ export class AuthGuard implements CanActivate {
     const token = /^Bearer\s+(.+)$/i.exec(header)?.[1];
     if (!token) throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Missing bearer token' });
 
+    // Opaque SSO session from the web app.
+    if (token.startsWith(SESSION_PREFIX)) {
+      const s = await this.sessions.resolve(token);
+      if (!s) throw new UnauthorizedException({ code: 'SESSION_EXPIRED', message: 'Your session has ended; sign in again' });
+      req.user = { id: s.id, email: s.email, role: Role.parse(s.role), siteIds: s.siteIds, sessionId: s.sessionId };
+      return this.authorize(req.user, targets);
+    }
+
     let sub: string;
     let clientId: string | undefined;
     let issuedAt = 0;
@@ -66,10 +76,14 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Service client revoked, expired or rotated' });
     }
 
-    const user = await this.prisma.users.findUnique({ where: { id: sub }, select: { id: true, email: true, role: true, is_active: true } });
+    const user = await this.prisma.users.findUnique({ where: { id: sub }, select: { id: true, email: true, role: true, is_active: true, user_site_scopes: { select: { site_id: true } } } });
     if (!user || !user.is_active) throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'User is inactive or unknown' });
-    req.user = { id: user.id, email: user.email, role: Role.parse(user.role) };
+    req.user = { id: user.id, email: user.email, role: Role.parse(user.role), siteIds: user.user_site_scopes.length ? user.user_site_scopes.map((s) => s.site_id) : null };
+    return this.authorize(req.user, targets);
+  }
 
+  private authorize(user: NonNullable<RequestWithUser['user']>, targets: Parameters<Reflector['getAllAndOverride']>[1]): boolean {
+    const req = { user };
     const required = this.reflector.getAllAndOverride<Role[] | undefined>(ROLES, targets);
     // Machine accounts are deny-by-default: only routes that name the role explicitly.
     if (req.user.role === 'discovery_service' && !required?.includes('discovery_service')) {

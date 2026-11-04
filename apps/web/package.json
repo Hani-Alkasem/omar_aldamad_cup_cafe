@@ -14,6 +14,7 @@
     "@itam/shared": "workspace:*",
     "@xyflow/react": "12.3.6",
     "next": "14.2.35",
+    "openid-client": "5.7.1",
     "qrcode": "1.5.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",

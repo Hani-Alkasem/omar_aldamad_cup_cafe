@@ -1,4 +1,6 @@
 import 'server-only';
+import { redirect } from 'next/navigation';
+import { oidcEnabled, requestToken } from './auth';
 import type { DepreciationSummary, Graph, RackElevation, RackPowerSummary } from '@itam/shared';
 
 /** Server-side API client. The token stays on the server; the browser only talks to Next. */
@@ -14,8 +16,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     cache: 'no-store',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.API_TOKEN ?? ''}`, ...init.headers },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${requestToken()}`, ...init.headers },
   });
+  // An expired or revoked SSO session: send the user to sign in again.
+  if (res.status === 401 && oidcEnabled()) redirect('/auth/expired');
   const body = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, body?.code ?? 'ERROR', body?.message ?? res.statusText);
   return body as T;
@@ -237,3 +241,24 @@ export interface Delivery {
 }
 export const getWebhooks = () => api<Webhook[]>('/webhooks');
 export const getDeliveries = (id: string, limit = 8) => api<Delivery[]>(`/webhooks/${enc(id)}/deliveries?limit=${limit}`);
+
+export interface Me {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  authSource: string;
+  sites: Array<{ id: string; name: string }>;
+  ssoEnabled: boolean;
+}
+/**
+ * For the layout. Returns 'expired' when the browser holds a session the API refuses, so the layout
+ * can route through /auth/expired (pages may swallow redirects in their own error handling).
+ */
+export async function getMeOrNull(): Promise<Me | null | 'expired'> {
+  const token = requestToken();
+  if (!token) return null;
+  const res = await fetch(`${API_URL}/auth/me`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' }).catch(() => null);
+  if (res?.status === 401 && oidcEnabled()) return 'expired';
+  return res?.ok ? ((await res.json()) as Me) : null;
+}

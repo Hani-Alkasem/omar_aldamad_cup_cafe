@@ -20,3 +20,6 @@ export const conflict = (code: string, message: string, details?: Record<string,
 
 export const unprocessable = (code: string, message: string, details?: Record<string, unknown>) =>
   new DomainError(HttpStatus.UNPROCESSABLE_ENTITY, code, message, details);
+
+export const forbidden = (code: string, message: string, details?: Record<string, unknown>) =>
+  new DomainError(HttpStatus.FORBIDDEN, code, message, details);

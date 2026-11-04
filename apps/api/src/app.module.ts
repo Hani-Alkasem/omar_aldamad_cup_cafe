@@ -10,6 +10,7 @@ import { LifecycleModule } from './modules/lifecycle/lifecycle.module';
 import { CmdbModule } from './modules/cmdb/cmdb.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { ServiceClientsModule } from './modules/service-clients/service-clients.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { PowerModule } from './modules/power/power.module';
 import { AuthGuard } from './modules/auth/auth.guard';
@@ -17,7 +18,7 @@ import { IpamModule } from './modules/ipam/ipam.module';
 import { RacksModule } from './modules/racks/racks.module';
 
 @Module({
-  imports: [PrismaModule, AssetsModule, RacksModule, IpamModule, LifecycleModule, ComponentsModule, CablingModule, PowerModule, DiscoveryModule, CmdbModule, IntegrationsModule, ServiceClientsModule],
+  imports: [PrismaModule, SessionsModule, AssetsModule, RacksModule, IpamModule, LifecycleModule, ComponentsModule, CablingModule, PowerModule, DiscoveryModule, CmdbModule, IntegrationsModule, ServiceClientsModule],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

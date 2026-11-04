@@ -6,6 +6,7 @@ import { PrismaService, TX_OPTIONS, type Tx } from '../../common/prisma.service'
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/auth.types';
 import { tracePath, type TraceCable, type TracePort } from './trace';
+import { ScopeService } from '../sessions/scope.service';
 
 interface PortRow {
   id: string;
@@ -62,6 +63,7 @@ export class CablingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly scope: ScopeService,
   ) {}
 
   private async ports(tx: Tx, where: string, ...params: unknown[]) {
@@ -93,6 +95,7 @@ export class CablingService {
   async createPort(assetId: string, input: CreatePortInput, user: AuthUser, requestId?: string) {
     return this.prisma.$transaction(async (tx) => {
       await this.requireAsset(tx, assetId);
+      await this.scope.assertAssets(tx, user, [assetId]);
       let id: string;
       try {
         [{ id }] = await tx.$queryRaw<Array<{ id: string }>>`
@@ -113,6 +116,7 @@ export class CablingService {
   async bulkPorts(assetId: string, input: BulkPortsInput, user: AuthUser, requestId?: string) {
     return this.prisma.$transaction(async (tx) => {
       const asset = await this.requireAsset(tx, assetId);
+      await this.scope.assertAssets(tx, user, [assetId]);
       if (input.patchPanel && asset.type !== 'patch_panel') {
         throw unprocessable('NOT_A_PATCH_PANEL', 'patchPanel ports can only be added to a patch_panel asset');
       }
@@ -154,6 +158,7 @@ export class CablingService {
     await this.prisma.$transaction(async (tx) => {
       const [port] = await this.ports(tx, 'p.id = $1::uuid', id);
       if (!port) throw notFound('Port', id);
+      await this.scope.assertAssets(tx, user, [port.assetId]);
       if (port.cable) throw conflict('PORT_CABLED', `Disconnect cable from ${port.portName} first`, { cableId: port.cable.id });
       await tx.$executeRaw`DELETE FROM network_ports WHERE id = ${id}::uuid`;
       await this.audit.record(tx, { entity: 'network_port', entityId: id, action: 'delete', before: port, userId: user.id, requestId });
@@ -163,9 +168,10 @@ export class CablingService {
   async connect(input: CreateCableInput, user: AuthUser, requestId?: string) {
     return this.prisma.$transaction(async (tx) => {
       // Lock both ports so two technicians cannot cable the same port at once.
-      const locked = await tx.$queryRaw<Array<{ id: string; kind: PortKind }>>`
-        SELECT id, kind FROM network_ports WHERE id IN (${input.aPortId}::uuid, ${input.bPortId}::uuid) ORDER BY id FOR UPDATE`;
+      const locked = await tx.$queryRaw<Array<{ id: string; kind: PortKind; asset_id: string }>>`
+        SELECT id, kind, asset_id FROM network_ports WHERE id IN (${input.aPortId}::uuid, ${input.bPortId}::uuid) ORDER BY id FOR UPDATE`;
       for (const id of [input.aPortId, input.bPortId]) if (!locked.some((p) => p.id === id)) throw notFound('Port', id);
+      await this.scope.assertAssets(tx, user, locked.map((p) => p.asset_id));
 
       const busy = await this.ports(tx, '(p.id = $1::uuid OR p.id = $2::uuid) AND c.id IS NOT NULL', input.aPortId, input.bPortId);
       if (busy.length) {
@@ -202,6 +208,8 @@ export class CablingService {
     await this.prisma.$transaction(async (tx) => {
       const c = await this.cable(tx, id);
       if (!c) throw notFound('Cable', id);
+      const ends = await tx.$queryRaw<Array<{ asset_id: string }>>`SELECT asset_id FROM network_ports WHERE id IN (${c.aPortId}::uuid, ${c.bPortId}::uuid)`;
+      await this.scope.assertAssets(tx, user, ends.map((e) => e.asset_id));
       await tx.$executeRaw`DELETE FROM cables WHERE id = ${id}::uuid`;
       await this.audit.record(tx, { entity: 'cable', entityId: id, action: 'delete', before: c, userId: user.id, requestId });
     }, TX_OPTIONS);

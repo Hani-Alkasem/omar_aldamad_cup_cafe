@@ -5,6 +5,7 @@ import { notFound } from '../../common/errors';
 import { PrismaService, TX_OPTIONS } from '../../common/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/auth.types';
+import { ScopeService } from '../sessions/scope.service';
 
 const toDto = (c: Prisma.asset_componentsGetPayload<object>) => ({
   id: c.id,
@@ -23,6 +24,7 @@ export class ComponentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly scope: ScopeService,
   ) {}
 
   /** Components plus a hardware summary: CPU cores, memory GB, raw disk GB, GPU count. */
@@ -39,6 +41,7 @@ export class ComponentsService {
   async create(assetId: string, input: CreateComponentInput, user: AuthUser, requestId?: string) {
     return this.prisma.$transaction(async (tx) => {
       if (!(await tx.assets.findUnique({ where: { id: assetId }, select: { id: true } }))) throw notFound('Asset', assetId);
+      await this.scope.assertAssets(tx, user, [assetId]);
       const c = await tx.asset_components.create({
         data: {
           asset_id: assetId,
@@ -60,6 +63,7 @@ export class ComponentsService {
     await this.prisma.$transaction(async (tx) => {
       const c = await tx.asset_components.findUnique({ where: { id } });
       if (!c) throw notFound('Component', id);
+      await this.scope.assertAssets(tx, user, [c.asset_id]);
       await tx.asset_components.delete({ where: { id } });
       await this.audit.record(tx, { entity: 'asset_component', entityId: id, action: 'delete', before: toDto(c), userId: user.id, requestId });
     }, TX_OPTIONS);

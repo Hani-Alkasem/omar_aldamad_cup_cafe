@@ -1,5 +1,6 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
+import { requestToken } from './auth';
 
 export const API_URL = process.env.API_URL ?? 'http://localhost:4000/api/v1';
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -24,7 +25,7 @@ export function rejectCrossSite(req: Request): NextResponse | null {
 export async function forward(path: string, init: { method: string; body?: unknown }) {
   const res = await fetch(`${API_URL}${path}`, {
     method: init.method,
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.API_TOKEN ?? ''}` },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${requestToken()}` },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     cache: 'no-store',
   });

@@ -6,6 +6,7 @@ import { PrismaService, TX_OPTIONS } from '../../common/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/auth.types';
 import { computeRackPower } from './power-budget';
+import { ScopeService } from '../sessions/scope.service';
 
 const portDto = (p: { id: string; asset_id: string; name: string; kind: 'inlet' | 'outlet'; feed: 'A' | 'B' | 'C' | null; voltage: number; max_amps: unknown }) => ({
   id: p.id,
@@ -22,6 +23,7 @@ export class PowerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly scope: ScopeService,
   ) {}
 
   async listPorts(assetId: string) {
@@ -52,6 +54,7 @@ export class PowerService {
     return this.prisma.$transaction(async (tx) => {
       const asset = await tx.assets.findUnique({ where: { id: assetId }, select: { id: true, type: true } });
       if (!asset) throw notFound('Asset', assetId);
+      await this.scope.assertAssets(tx, user, [assetId]);
       if (input.kind === 'outlet' && !['pdu', 'ups'].includes(asset.type)) {
         throw unprocessable('NOT_A_POWER_SOURCE', 'Only PDUs and UPSes have outlets');
       }
@@ -77,9 +80,13 @@ export class PowerService {
 
   async connect(input: ConnectPowerInput, user: AuthUser, requestId?: string) {
     return this.prisma.$transaction(async (tx) => {
+      const owners: string[] = [];
       for (const id of [input.outletPortId, input.inletPortId]) {
-        if (!(await tx.power_ports.findUnique({ where: { id } }))) throw notFound('Power port', id);
+        const p = await tx.power_ports.findUnique({ where: { id }, select: { asset_id: true } });
+        if (!p) throw notFound('Power port', id);
+        owners.push(p.asset_id);
       }
+      await this.scope.assertAssets(tx, user, owners);
       const busy = await tx.power_connections.findFirst({ where: { OR: [{ outlet_port_id: input.outletPortId }, { inlet_port_id: input.inletPortId }] } });
       if (busy) throw conflict('POWER_PORT_IN_USE', busy.outlet_port_id === input.outletPortId ? 'That outlet already has a cord' : 'That inlet is already plugged in', { connectionId: busy.id });
 
@@ -101,6 +108,8 @@ export class PowerService {
     await this.prisma.$transaction(async (tx) => {
       const c = await tx.power_connections.findUnique({ where: { id } });
       if (!c) throw notFound('Power connection', id);
+      const ends = await tx.power_ports.findMany({ where: { id: { in: [c.outlet_port_id, c.inlet_port_id] } }, select: { asset_id: true } });
+      await this.scope.assertAssets(tx, user, ends.map((e) => e.asset_id));
       await tx.power_connections.delete({ where: { id } });
       await this.audit.record(tx, { entity: 'power_connection', entityId: id, action: 'delete', before: { id, outletPortId: c.outlet_port_id, inletPortId: c.inlet_port_id }, userId: user.id, requestId });
     }, TX_OPTIONS);
