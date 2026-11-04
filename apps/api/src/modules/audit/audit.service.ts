@@ -30,6 +30,18 @@ export function snapshot(value: unknown): Record<string, unknown> {
   return JSON.parse(JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)));
 }
 
+const PAST: Record<AuditAction, string> = { create: 'created', update: 'updated', delete: 'deleted', access: 'accessed' };
+
+export interface DomainEvent {
+  type: string;
+  entity: string;
+  entityId: string;
+  payload: object;
+  requestId?: string | null;
+  /** Set for events that a retry or re-run could emit twice (per-host, per-day). */
+  dedupeKey?: string;
+}
+
 /**
  * Writes to the append-only audit_logs table. Always called with the caller's
  * transaction client so the audit row commits or rolls back with the change itself.
@@ -54,5 +66,22 @@ export class AuditService {
         request_id: entry.requestId ?? null,
       },
     });
+
+    // Transactional outbox: every audited change is also an event, committed or rolled back with it.
+    await this.emit(tx, {
+      type: `${entry.entity}.${PAST[entry.action]}`,
+      entity: entry.entity,
+      entityId: entry.entityId,
+      requestId: entry.requestId,
+      payload: { changedFields: fields, ...(after ? { after } : { before }), ...(entry.userId ? { actorId: entry.userId } : {}) },
+    });
+  }
+
+  /** Domain events that are not a row change (run finished, contract expiring). Duplicates by dedupeKey are ignored. */
+  async emit(tx: Tx, e: DomainEvent): Promise<void> {
+    await tx.$executeRaw`
+      INSERT INTO outbox_events (type, entity, entity_id, payload, request_id, dedupe_key)
+      VALUES (${e.type}, ${e.entity}, ${e.entityId}, ${JSON.stringify(snapshot(e.payload))}::jsonb, ${e.requestId ?? null}, ${e.dedupeKey ?? null})
+      ON CONFLICT (dedupe_key) DO NOTHING`;
   }
 }

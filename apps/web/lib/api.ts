@@ -213,3 +213,27 @@ export const getImpact = (id: string) => api<Impact>(`/assets/${enc(id)}/impact`
 export const getApplications = () => api<Application[]>('/applications');
 export const getApplication = (id: string) => api<Application>(`/applications/${enc(id)}`);
 export const getApplicationGraph = (id: string, includeStale = false) => api<Graph>(`/applications/${enc(id)}/graph?includeStale=${includeStale}`);
+
+/* ---------- Phase 4: integrations ---------- */
+export interface Webhook {
+  id: string;
+  name: string;
+  kind: 'generic' | 'slack' | 'jira' | 'servicenow';
+  url: string;
+  eventTypes: string[];
+  isEnabled: boolean;
+  health: { last24h: { succeeded: number; failed: number; dead: number; pending: number }; lastError: string | null; lastDeliveredAt: string | null };
+}
+export interface Delivery {
+  id: string;
+  eventType: string;
+  status: 'pending' | 'succeeded' | 'failed' | 'dead';
+  attempts: number;
+  nextAttemptAt: string | null;
+  lastStatusCode: number | null;
+  lastError: string | null;
+  responseMs: number | null;
+  createdAt: string;
+}
+export const getWebhooks = () => api<Webhook[]>('/webhooks');
+export const getDeliveries = (id: string, limit = 8) => api<Delivery[]>(`/webhooks/${enc(id)}/deliveries?limit=${limit}`);

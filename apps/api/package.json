@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:pull": "sh scripts/db-pull.sh",
     "seed": "tsx prisma/seed.ts",
-    "token": "tsx scripts/dev-token.ts"
+    "token": "tsx scripts/dev-token.ts",
+    "dispatcher": "node --enable-source-maps dist/dispatcher.js"
   },
   "dependencies": {
     "@itam/shared": "workspace:*",

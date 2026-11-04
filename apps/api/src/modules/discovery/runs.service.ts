@@ -3,6 +3,7 @@ import { DiscoveryOptions, type FinishRunInput, type RunSpec, type SubmitHostsIn
 import { conflict, notFound, unprocessable } from '../../common/errors';
 import { PrismaService, TX_OPTIONS, type Tx } from '../../common/prisma.service';
 import { parseIp } from '../ipam/cidr';
+import { AuditService } from '../audit/audit.service';
 import { CredentialsService } from './credentials.service';
 import { runDto } from './jobs.service';
 import { ReconcilerService } from './reconciler.service';
@@ -27,6 +28,7 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly credentials: CredentialsService,
     private readonly reconciler: ReconcilerService,
+    private readonly audit: AuditService,
   ) {}
 
   onModuleInit() {
@@ -164,6 +166,16 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
       const { connections, ...kept } = facts;
       const outbound = outboundDependencies(facts);
       await this.upsertResult(this.prisma, runId, { ip: facts.ip, ...res, facts: { ...kept, connectionCount: connections.length, ...(outbound.length ? { outbound } : {}) } });
+      if (res.outcome === 'conflict') {
+        await this.audit.emit(this.prisma, {
+          type: 'discovery.conflict',
+          entity: 'discovery_run',
+          entityId: runId,
+          dedupeKey: `discovery.conflict:${runId}:${facts.ip}`,
+          requestId: ctx.requestId,
+          payload: { runId, ip: facts.ip, hostname: facts.hostname ?? null, assetId: res.assetId, reason: res.message, candidates: (res.changes as { candidates?: unknown }).candidates ?? [] },
+        });
+      }
       summary[res.outcome === 'error' ? 'failed' : res.outcome]++;
     }
     await this.recount(this.prisma, runId);
@@ -201,7 +213,19 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
       const r = await tx.discovery_runs.findUnique({ where: { id: runId } });
       if (!r) throw notFound('Discovery run', runId);
       // Idempotent: a retried finish (or one racing the sweeper) returns the final state.
-      if (r.status === 'running' || r.status === 'queued') await this.finishTx(tx, runId, input);
+      if (r.status === 'running' || r.status === 'queued') {
+        await this.finishTx(tx, runId, input);
+        const done = runDto(await tx.discovery_runs.findUniqueOrThrow({ where: { id: runId } }));
+        const [job] = await tx.$queryRaw<Array<{ name: string }>>`SELECT name FROM discovery_jobs WHERE id = ${r.job_id}::uuid`;
+        await this.audit.emit(tx, {
+          type: 'discovery.run.finished',
+          entity: 'discovery_run',
+          entityId: runId,
+          dedupeKey: `discovery.run.finished:${runId}`,
+          payload: { runId, jobId: r.job_id, jobName: job?.name ?? null, status: done.status, progress: done.progress, counts: done.counts, error: done.error },
+        });
+        return done;
+      }
       return runDto(await tx.discovery_runs.findUniqueOrThrow({ where: { id: runId } }));
     }, TX_OPTIONS);
   }

@@ -7,3 +7,4 @@ export * from './cabling';
 export * from './power';
 export * from './discovery';
 export * from './cmdb';
+export * from './integrations';

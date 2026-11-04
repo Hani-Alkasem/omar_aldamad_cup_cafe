@@ -6,13 +6,12 @@ import { BullDiscoveryQueue, DiscoveryQueue } from './discovery.queue';
 import { JobsService } from './jobs.service';
 import { ReconcilerService } from './reconciler.service';
 import { RunsService } from './runs.service';
-import { Vault } from './vault';
+import { VaultModule } from './vault.module';
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, VaultModule],
   controllers: [DiscoveryController, DiscoveryInternalController],
   providers: [
-    { provide: Vault, useFactory: () => new Vault(process.env) },
     { provide: DiscoveryQueue, useClass: BullDiscoveryQueue },
     CredentialsService,
     JobsService,
