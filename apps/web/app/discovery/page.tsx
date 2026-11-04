@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Badge, Empty, Section, Unavailable } from '@/components/ui';
 import { RunNowButton } from '@/components/discovery/RunNowButton';
+import { LiveRefresh } from '@/components/LiveRefresh';
 import { statusLabel, statusTone, when } from '@/components/discovery/tones';
 import { getDiscoveryJobs, getJobRuns, type DiscoveryRun } from '@/lib/api';
 
@@ -17,7 +18,7 @@ export default async function DiscoveryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Discovery</h1>
+        <h1 className="flex items-center gap-3 text-2xl font-semibold text-white">Discovery <LiveRefresh types="discovery_run.progress" /></h1>
         <p className="text-sm text-slate-400">Agentless SNMP and SSH sweeps, plus vCenter, AWS and Azure inventories. Results are matched to existing assets by provider id, system UUID, serial, MAC, then IP.</p>
       </div>
 

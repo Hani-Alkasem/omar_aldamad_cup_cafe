@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { RackPowerPanel } from '@/components/rack/RackPowerPanel';
 import { RackView } from '@/components/rack/RackView';
+import { LiveRefresh } from '@/components/LiveRefresh';
 import { Section } from '@/components/ui';
 import { ApiError, getElevation, getRackPower } from '@/lib/api';
 
@@ -13,6 +14,7 @@ export default async function RackPage({ params }: { params: { id: string } }) {
     const devices = [...elevation.devices].sort((a, b) => (b.startU ?? 0) - (a.startU ?? 0));
     return (
       <div className="space-y-6">
+        <div className="flex justify-end"><LiveRefresh types="asset.*,power_connection.*" /></div>
         <RackView elevation={elevation} />
         <div className="grid gap-4 lg:grid-cols-2">
           {power && <RackPowerPanel power={power} />}

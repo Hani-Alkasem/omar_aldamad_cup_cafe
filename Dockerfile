@@ -66,7 +66,7 @@ FROM ${NODE_IMAGE} AS runtime
 # Prisma's query engine links against OpenSSL 3, which the slim image does not ship.
 COPY --from=openssl /ssl/ /usr/local/lib/
 RUN ldconfig
-ENV NODE_ENV=production
+ENV NODE_ENV=production LOG_FORMAT=json
 WORKDIR /app
 USER node
 

@@ -1,0 +1,3 @@
+apiVersion: 1
+providers:
+  - { name: itam, folder: ITAM, type: file, disableDeletion: true, options: { path: /var/lib/grafana/dashboards } }

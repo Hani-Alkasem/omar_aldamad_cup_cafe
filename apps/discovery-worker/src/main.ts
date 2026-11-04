@@ -1,3 +1,6 @@
+import { hostsTotal, runSeconds, runsTotal, serveMetrics, startTracing } from './observability';
+startTracing(); // before the libraries it instruments are loaded
+
 import { DISCOVERY_QUEUE, type DiscoveryQueueJob } from '@itam/shared';
 import { DelayedError, Worker, type Job } from 'bullmq';
 import { ApiError, HttpDiscoveryApi } from './api-client';
@@ -29,7 +32,12 @@ async function handle(job: Job<DiscoveryQueueJob & { reclaimWaits?: number }>, t
     if (!runId) runId = (await api.openScheduledRun(job.data.jobId)).id;
     const spec = await api.claim(runId);
     log('run claimed', { runId, jobId: spec.jobId, protocol: spec.protocol, targets: spec.targets, endpoints: spec.endpoints });
+    const stop = runSeconds.startTimer({ protocol: spec.protocol });
     const report = await executeRun(spec, { api, collectors, inventory, log, signal: shutdown.signal });
+    stop();
+    runsTotal.inc({ protocol: spec.protocol, status: report.status });
+    hostsTotal.inc({ protocol: spec.protocol, result: 'answered' }, report.responded);
+    hostsTotal.inc({ protocol: spec.protocol, result: 'probed' }, report.scanned);
     log('run finished', { runId, ...report });
     return report;
   } catch (e) {
@@ -68,6 +76,8 @@ worker.on('ready', () => log('worker ready', { queue: DISCOVERY_QUEUE, concurren
 worker.on('failed', (job, err) => log('job failed', { jobId: job?.data.jobId, runId: job?.data.runId, error: err.message }));
 worker.on('error', (err) => log('worker error', { error: err.message }));
 
+const metricsServer = serveMetrics();
+
 let stopping = false;
 for (const sig of ['SIGTERM', 'SIGINT'] as const) {
   process.on(sig, async () => {
@@ -76,6 +86,7 @@ for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     log('shutting down', { signal: sig });
     shutdown.abort(); // in-flight runs finish as "partial" with what they have
     await worker.close();
+    metricsServer.close();
     process.exit(0);
   });
 }

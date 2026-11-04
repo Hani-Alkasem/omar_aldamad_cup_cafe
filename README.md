@@ -22,6 +22,11 @@ An enterprise IT asset, data-centre and IP management platform in the spirit of 
   - outbound integrations: a transactional outbox feeds HMAC-signed webhooks, Slack, Jira and ServiceNow through a separate dispatcher, with retries, dead letters and replay
   - service-client credentials for the worker: short-lived tokens instead of a long-lived JWT
   - container images for every service, a full-stack compose file and a GitHub Actions pipeline
+- **Phase 5:**
+  - single sign-on with any OIDC provider (Keycloak, AD FS, Entra ID, Okta); roles and site scopes come from IdP groups
+  - global search (names, tags, serials, IPs, CIDRs, MACs, UUIDs), an overview dashboard, and CSV import/export
+  - vCenter, AWS and Azure inventory discovery, converging with SSH discovery on the same VM
+  - live pages over Server-Sent Events, Prometheus metrics, OpenTelemetry traces, JSON logs, and a Grafana dashboard
 
 See **[docs/architecture.md](docs/architecture.md)** for the system diagram and phase plan.
 
@@ -103,7 +108,7 @@ TEST_DATABASE_ADMIN_URL=postgresql://itam:itam@localhost:5432/postgres pnpm test
 pnpm typecheck
 ```
 
-- **`apps/api`, 146 tests:**
+- **`apps/api`, 184 tests:**
   - Unit tests: rack geometry, CIDR maths, depreciation, cable path trace, rack power budget.
   - Database integrity: U-space EXCLUDE, rack height, subnet nesting and duplicates, IP-in-subnet, append-only audit, the CMDB blast-radius CTE.
   - API end to end: RBAC, a 409 with the conflicting device and suggested free slots, an 8-way placement race with exactly one winner, PATCH moves with before/after audit diffs, 50 concurrent IP allocations returning 50 distinct addresses, `SUBNET_FULL`, IPv6.
@@ -136,11 +141,31 @@ pnpm typecheck
     - SSRF blocking at send time
     - daily dedupe
   - Service clients: scrypt hashing, token exchange, rotation and revocation killing old tokens, uniform errors, rate limits.
-- **`apps/discovery-worker`, 23 tests:**
+  - SSO and scopes (against the lab IdP's real JWKS):
+    - verified, fresh, single-use ID tokens; group → role and site mapping
+    - adopting pre-provisioned users
+    - writes confined to a user's sites; reads stay global
+    - logout and admin revocation
+  - Search, reports and CSV:
+    - every query shape
+    - dashboard aggregates
+    - streamed, formula-safe export that re-imports unchanged
+    - import with dry run, every row problem reported at once, U collisions between rows, matching by tag then serial
+  - Inventory:
+    - vSphere job shapes
+    - VM → host `runs_on` links (moved on vMotion)
+    - SSH and vCenter converging on a byte-swapped SMBIOS UUID
+    - endpoint failures
+  - Live and observability:
+    - only committed changes are streamed, and admin-only events are hidden
+    - metrics by route template, with an optional token
+    - request ids echoed and stamped on audit rows
+- **`apps/discovery-worker`, 31 tests:**
   - against a real in-process SSH server and SNMP agent (v2c and v3 authPriv)
   - `ss`/`netstat` parsing
   - target expansion, credential ordering, batching, stop and shutdown
   - token refresh
+  - collectors against a mock vCenter, a mocked EC2 client and a mock Entra ID/ARM server
 - **`apps/web`, 12 tests:** rack layout maths, topology layout (deterministic, consumers left of dependencies).
 - **CI** (`.github/workflows/ci.yml`):
   - typecheck and all suites against a Postgres 16 service container
@@ -259,6 +284,74 @@ worker ─finish─▶ API
   - Targets must resolve to public addresses; this is checked in the socket's DNS lookup.
   - Redirects are never followed.
   - On-prem targets need `WEBHOOK_ALLOW_PRIVATE_CIDRS`.
+
+## Phase 5
+
+### Single sign-on
+
+- **How sign-in works:**
+  - The web server is a confidential OIDC client (authorization code + PKCE).
+  - It hands the ID token to `POST /auth/sessions`.
+  - The API checks the signature against the issuer's JWKS, plus `iss`, `aud`, `exp` and an age under 5 minutes. Each token can be used once.
+  - The API then returns an opaque session. The browser holds only an httpOnly SameSite=Lax cookie.
+- **Roles and sites come from groups at every login:**
+  - The strongest mapped role wins.
+  - A user in no mapped group is refused.
+  - A site group that matches no site refuses the login rather than granting every site.
+- **Site scopes limit writes:** assets, placement, components, ports, cables, power and maintenance. Reads stay global. Admins can also set scopes by hand (`PUT /users/:id/sites`) and sign a user out everywhere (`DELETE /users/:id/sessions`).
+
+```bash
+# local IdP for development (users: Ada admin, Nour network, Dana DC-East tech, Ari auditor, Mallory no groups)
+pnpm --filter @itam/api lab-idp
+# API
+OIDC_ISSUER=http://127.0.0.1:4400 OIDC_CLIENT_ID=itam-web \
+OIDC_ROLE_MAP='{"itam-admins":"admin","itam-network":"network_engineer","itam-dc-techs":"dc_technician","itam-auditors":"auditor"}' \
+OIDC_SITE_MAP='{"site-dc-east":["DC-East"]}' pnpm --filter @itam/api dev
+# web
+OIDC_ISSUER=http://127.0.0.1:4400 OIDC_CLIENT_ID=itam-web OIDC_CLIENT_SECRET=lab-secret pnpm --filter @itam/web dev
+```
+
+- **Keycloak:** add a "groups" mapper to the client and set `OIDC_SCOPES="openid email profile"`.
+- **Entra ID:** set `OIDC_GROUPS_CLAIM=groups` (group object ids are the map keys), or use app roles with `OIDC_GROUPS_CLAIM=roles`.
+
+### Search, dashboard, CSV
+
+| Route | Notes |
+|---|---|
+| `GET /search?q=` | IP/CIDR → IPAM containment; MAC in any notation, including Cisco dotted; UUID; otherwise exact tag/serial, then name prefix, then trigram similarity |
+| `GET /reports/summary` | assets, rack U and power against budget, coverage and expiries, busiest subnets, discovery and webhook health |
+| `GET /export/{assets,ip-addresses,subnets,contracts}.csv` | streamed; formula injection neutralised; the asset export uses the import columns |
+| `POST /imports/assets?dryRun=true` | `text/csv`; one transaction that rolls back unless clean and committed, so a dry run is exact |
+
+### Inventory discovery
+
+| Protocol | Endpoint | Credential | Least privilege |
+|---|---|---|---|
+| `vsphere` | `https://vcenter.example.com` (7.0 U2+ REST) | username + password | a read-only role with System.View |
+| `aws` | region, for example `eu-west-1` | access key id + secret | `ec2:DescribeInstances`, `ec2:DescribeInstanceTypes` |
+| `azure` | subscription id | tenant, client id, client secret | Reader on the subscription |
+
+- **Identity matching:** provider ids are the strongest key. The vCenter BIOS UUID and Azure `vmId` are matched in both SMBIOS byte orders, so SSH discovery of the same guest updates the same asset.
+- **VM → host `runs_on` edges** are built at the end of the run and move on vMotion.
+- **vCenters with a private CA:** put the CA in `options.tlsCaPem`. `options.tlsInsecure` is for labs only, and the run logs a warning.
+
+### Live updates and observability
+
+- **Live updates:**
+  - Committed outbox events and run progress are sent through Postgres `NOTIFY`. Every API replica `LISTEN`s and streams them at `GET /events/stream?types=asset.*,discovery_run.progress` (SSE).
+  - Events carry references only, so pages re-read through the permission-checked API.
+  - Credential, webhook, session and user events are shown to admins only.
+  - If the stream drops, pages fall back to polling and say so.
+- **Metrics:**
+  - The API serves `GET /api/v1/metrics` (set `METRICS_TOKEN` to require a bearer token).
+  - The dispatcher serves `:9464/metrics` and the worker `:9465/metrics`.
+  - Latency is labelled by route template, so cardinality stays bounded.
+- **Traces:** set `OTEL_EXPORTER_OTLP_ENDPOINT` (for example `http://jaeger:4318`). Spans cover HTTP, Express/Nest, Prisma, Redis and outbound calls.
+- **Logs:**
+  - `LOG_FORMAT=json` (the default in the images) gives one line per event, with `requestId` and `traceId`.
+  - The access log records the route template, never the raw URL.
+  - `X-Request-Id` is accepted or minted, echoed on the response, and stored on audit rows.
+- **Observability stack:** `docker compose --profile app --profile observability up -d` adds Prometheus (with alert rules), Grafana (the "ITAM platform" dashboard, provisioned) and Jaeger, all bound to 127.0.0.1.
 
 ## Schema workflow
 

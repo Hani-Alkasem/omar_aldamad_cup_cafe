@@ -60,7 +60,8 @@ flowchart LR
 | UI | Rack elevation | Mobile asset page, QR label sheet, contract expiry and coverage gaps, rack power panel | Dependency map |
 | Discovery | Tables only | | Phase 3: vault, jobs, BullMQ schedules, SNMP/SSH worker, reconciliation, review UI. Phase 4: socket-based dependency mapping, client-credential worker auth. Later: WinRM, vSphere/AWS/Azure, ARP/CAM ingestion |
 | Integrations | | | Phase 4: transactional outbox, signed webhooks, Slack, Jira, ServiceNow, dispatcher with retries, replay, SSRF guard |
-| Delivery | | | Phase 4: multi-target Dockerfile, hardened compose stack, GitHub Actions CI |
+| Delivery | | | Phase 4: multi-target Dockerfile, hardened compose stack, GitHub Actions CI. Phase 5: Prometheus, OpenTelemetry, JSON logs, Grafana |
+| Identity | Shared JWT roles | | Phase 5: OIDC SSO, server-side sessions, IdP groups → roles and site scopes |
 
 ### Phase 2 flows
 
@@ -126,6 +127,30 @@ flowchart LR
 - **Dependency edges:** derived when a run finishes, from each host's client-side sessions (`ss`). They are counted once per run, never deleted, shown as stale after 14 days, and never touched if a person created them.
 - **Worker authentication:** service clients exchange an id and secret (stored as a scrypt hash) for a 15-minute token. Rotation and revocation invalidate tokens already issued.
 
+### Phase 5: identity, search, inventory, live
+
+```mermaid
+flowchart LR
+  U[Browser] -- OIDC code + PKCE --> IdP[(Keycloak / AD FS / Entra)]
+  U -- cookie: opaque session --> W[web]
+  W -- ID token once --> A[API /auth/sessions]
+  A -- JWKS verify, groups → role + sites --> DB[(Postgres)]
+  W -- Bearer itams_… --> A
+  A -. LISTEN itam_events .-> DB
+  DB -. NOTIFY on commit .-> A
+  A -- SSE --> W -- SSE --> U
+  K[worker] -- vCenter REST / EC2 / ARM --> V[(vSphere · AWS · Azure)]
+  K -- hosts + VMs + runsOn --> A
+  A -- metrics --> P[Prometheus] --> G[Grafana]
+  A -- OTLP --> J[Jaeger / collector]
+```
+
+- **Sessions are opaque and server-side:** revocation is immediate, nothing sensitive sits in the browser, and a stolen ID token cannot open a second session.
+- **Scopes apply to writes only:** auditors and engineers still need to see everything to do their jobs.
+- **Search is built into Postgres** (trigram indexes), so an on-prem install has no separate search engine to run.
+- **Inventory identity, strongest key first:** provider id, then SMBIOS UUID in both byte orders, then serial, then MAC, then IP. A VM therefore stays one asset whether vCenter, Azure or SSH saw it first.
+- **Live events carry references, not data:** the stream can't leak anything a page refresh wouldn't show. Admin-only types are filtered per subscriber.
+
 ## Integrity rules enforced by PostgreSQL
 
 Every rule below holds even if a client bypasses the API:
@@ -141,6 +166,10 @@ Every rule below holds even if a client bypasses the API:
 - **Outbox and deliveries:** events are never updated (KB006), only pruned by age along with their deliveries. A dedupe key stops scheduled and per-host events from firing twice. Each subscription gets one delivery per event (unique). A delivery is `succeeded` exactly when it has a `delivered_at`. Webhook secrets need a 12-byte IV and a 16-byte tag.
 - **Relationships:** each edge has a provenance (`manual`, `discovery` or `power`), `observation_count >= 1` and `last_seen_at >= first_seen_at`. Applications have case-insensitively unique names.
 - **Service clients:** only a well-formed scrypt hash can be stored.
+- **Sessions:** only 32-byte hashes of the token and of the ID token are stored, and both are unique (one session per ID token). Expiry must follow creation.
+- **SSO users:** an `oidc` user must have an issuer and a subject, unique together.
+- **Inventory jobs:** sweep jobs have targets and no endpoints; inventory jobs have endpoints and no targets. Credential kinds must match the protocol (KB020). A provider id belongs to exactly one asset. Results are unique per run and key.
+- **Live events:** NOTIFY fires from triggers on the outbox and on run progress, so only committed changes are ever announced.
 - **Lifecycle:** contract `end_date >= start_date`; contract numbers unique per vendor; vendor names unique case-insensitively; salvage ≤ cost and in-service ≥ purchase date (CHECK); maintenance `next_due_on` is a generated column.
 
 The API also pre-checks rack placement and CIDR validity so it can return friendly 409/422 bodies. The constraints are the race-proof backstop.

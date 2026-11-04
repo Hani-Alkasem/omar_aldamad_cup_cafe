@@ -1,0 +1,22 @@
+groups:
+  - name: itam
+    rules:
+      - alert: ItamApiErrors
+        expr: sum(rate(itam_http_request_duration_seconds_count{status=~"5.."}[5m])) / clamp_min(sum(rate(itam_http_request_duration_seconds_count[5m])), 1e-9) > 0.02
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "More than 2% of API requests are failing" }
+      - alert: ItamWebhookBacklog
+        expr: sum(itam_webhook_backlog) > 500
+        for: 15m
+        labels: { severity: warning }
+        annotations: { summary: "Webhook deliveries are piling up; check the dispatcher and the receivers" }
+      - alert: ItamDiscoveryFailing
+        expr: increase(itam_discovery_runs_total{status="failed"}[6h]) > 0
+        labels: { severity: info }
+        annotations: { summary: "A discovery run failed in the last 6 hours" }
+      - alert: ItamTargetDown
+        expr: up{job=~"itam-.*"} == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "{{ $labels.job }} on {{ $labels.instance }} is not reporting" }

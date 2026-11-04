@@ -3,6 +3,7 @@ import type { WebhookEnvelope, WebhookKind } from '@itam/shared';
 import { PrismaService } from '../../common/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { Vault, VaultError } from '../discovery/vault';
+import { webhookDeliveries, webhookLatency } from '../../common/observability/metrics';
 import { buildRequest } from './adapters';
 import { isRetryableStatus, MAX_ATTEMPTS, retryDelayMs } from './backoff';
 import { ForbiddenAddressError, parseAllowList, safeRequest } from './ssrf';
@@ -104,6 +105,8 @@ export class DispatcherService {
         delivered_at = CASE WHEN ${o.status} = 'succeeded' THEN now() ELSE NULL END,
         next_attempt_at = now() + make_interval(secs => ${Math.ceil((o.retryInMs ?? 0) / 1000)})
       WHERE id = ${r.id}`;
+    webhookDeliveries.inc({ kind: r.kind, status: o.status });
+    if (o.ms != null) webhookLatency.observe({ kind: r.kind }, o.ms / 1000);
     if (o.status !== 'succeeded') this.log.warn(`delivery ${r.id} (${r.type} → ${r.kind}) ${o.status}: ${o.error}`);
   }
 

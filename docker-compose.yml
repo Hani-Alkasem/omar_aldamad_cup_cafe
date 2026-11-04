@@ -12,6 +12,10 @@ x-app-env: &app-env
   DISCOVERY_TZ: ${DISCOVERY_TZ:-UTC}
   PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
   WEBHOOK_ALLOW_PRIVATE_CIDRS: ${WEBHOOK_ALLOW_PRIVATE_CIDRS:-}
+  LOG_FORMAT: json
+  # Traces: set to http://jaeger:4318 with --profile observability (or your collector).
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
 
 x-hardening: &hardening
   init: true
@@ -104,6 +108,7 @@ services:
       WORKER_CLIENT_ID: ${WORKER_CLIENT_ID:-}
       WORKER_CLIENT_SECRET: ${WORKER_CLIENT_SECRET:-}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on: { api: { condition: service_healthy } }
 
   # Shares the worker's network namespace, so the worker reaches the simulated hosts on
@@ -118,6 +123,42 @@ services:
     cap_drop: ["ALL"]
     depends_on: [worker]
 
+  # ─── docker compose --profile observability up -d ─────────────────────────
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - promdata:/prometheus
+    ports: ["127.0.0.1:9090:9090"]
+    restart: unless-stopped
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:11.3.1
+    environment:
+      # Unset: Grafana starts as admin/admin and forces a change at first login (port is bound to 127.0.0.1).
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports: ["127.0.0.1:3001:3000"]
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+  jaeger:
+    profiles: ["observability"]
+    image: jaegertracing/all-in-one:1.63.0
+    environment: { COLLECTOR_OTLP_ENABLED: "true" }
+    ports: ["127.0.0.1:16686:16686"]
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
+  promdata:
+  grafanadata:

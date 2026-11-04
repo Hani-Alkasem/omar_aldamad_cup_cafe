@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Badge, Empty, Section, Stat } from '@/components/ui';
 import { AcceptHostKeyButton } from '@/components/discovery/AcceptHostKeyButton';
-import { AutoRefresh } from '@/components/discovery/AutoRefresh';
+import { LiveRefresh } from '@/components/LiveRefresh';
 import { duration, outcomeLabel, outcomeTone, statusLabel, statusTone, when } from '@/components/discovery/tones';
 import { ApiError, getDiscoveryJob, getRun, getRunResults, type DiscoveryOutcome } from '@/lib/api';
 
@@ -57,7 +57,7 @@ export default async function RunPage({ params, searchParams }: { params: { id: 
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
             <Badge tone={statusTone[run.status]}>{statusLabel[run.status]}</Badge>
             <span>{when(run.startedAt ?? run.queuedAt)} · {duration(run.startedAt, run.finishedAt)}</span>
-            <AutoRefresh active={active} />
+            <LiveRefresh types="discovery_run.progress" entityId={run.id} active={active} fallbackMs={5000} />
           </p>
         </div>
       </div>

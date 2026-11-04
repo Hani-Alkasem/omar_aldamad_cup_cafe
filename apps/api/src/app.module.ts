@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AllExceptionsFilter } from './common/http-exception.filter';
 import { PrismaModule } from './common/prisma.module';
 import { HealthController } from './health.controller';
@@ -12,6 +12,8 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { ServiceClientsModule } from './modules/service-clients/service-clients.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { EventsModule } from './modules/events/events.controller';
+import { MetricsModule, HttpMetricsInterceptor } from './common/observability/metrics';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { PowerModule } from './modules/power/power.module';
 import { AuthGuard } from './modules/auth/auth.guard';
@@ -19,11 +21,12 @@ import { IpamModule } from './modules/ipam/ipam.module';
 import { RacksModule } from './modules/racks/racks.module';
 
 @Module({
-  imports: [PrismaModule, SessionsModule, AssetsModule, RacksModule, IpamModule, LifecycleModule, ComponentsModule, CablingModule, PowerModule, DiscoveryModule, CmdbModule, IntegrationsModule, ServiceClientsModule, ReportsModule],
+  imports: [PrismaModule, SessionsModule, AssetsModule, RacksModule, IpamModule, LifecycleModule, ComponentsModule, CablingModule, PowerModule, DiscoveryModule, CmdbModule, IntegrationsModule, ServiceClientsModule, ReportsModule, EventsModule, MetricsModule],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: HttpMetricsInterceptor },
   ],
 })
 export class AppModule {}

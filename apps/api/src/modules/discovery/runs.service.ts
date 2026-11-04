@@ -6,6 +6,7 @@ import { parseIp } from '../ipam/cidr';
 import ipaddr from 'ipaddr.js';
 
 const isIp = (s: string) => ipaddr.isValid(s);
+import { discoveryHosts, discoveryRuns } from '../../common/observability/metrics';
 import { AuditService } from '../audit/audit.service';
 import { CredentialsService } from './credentials.service';
 import { runDto } from './jobs.service';
@@ -184,6 +185,7 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
         });
       }
       summary[res.outcome === 'error' ? 'failed' : res.outcome]++;
+      discoveryHosts.inc({ outcome: res.outcome });
     }
     await this.recount(this.prisma, runId);
     return { accepted: input.hosts.length + input.failures.length, ...summary, leaseSeconds: LEASE_SECONDS };
@@ -225,6 +227,8 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
       if (r.status === 'running' || r.status === 'queued') {
         await this.finishTx(tx, runId, input);
         const done = runDto(await tx.discovery_runs.findUniqueOrThrow({ where: { id: runId } }));
+        const [{ protocol }] = await tx.$queryRaw<Array<{ protocol: string }>>`SELECT j.protocol::text AS protocol FROM discovery_jobs j WHERE j.id = ${r.job_id}::uuid`;
+        discoveryRuns.inc({ protocol, status: done.status });
         const [job] = await tx.$queryRaw<Array<{ name: string }>>`SELECT name FROM discovery_jobs WHERE id = ${r.job_id}::uuid`;
         await this.audit.emit(tx, {
           type: 'discovery.run.finished',
