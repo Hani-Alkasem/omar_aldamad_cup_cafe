@@ -10,6 +10,8 @@ async function main() {
       ['tech@example.com', 'Dana Technician', 'dc_technician'],
       ['neteng@example.com', 'Nour Network', 'network_engineer'],
       ['audit@example.com', 'Ari Auditor', 'auditor'],
+      // Machine account for apps/discovery-worker: pnpm --filter @itam/api token --role discovery_service
+      ['discovery-worker@example.com', 'Discovery worker', 'discovery_service'],
     ] as const;
     for (const [email, display_name, role] of users) {
       if (!(await tx.users.findFirst({ where: { email } }))) await tx.users.create({ data: { email, display_name, role } });

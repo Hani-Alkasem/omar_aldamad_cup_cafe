@@ -46,6 +46,10 @@ export class AuthGuard implements CanActivate {
     req.user = { id: user.id, email: user.email, role: Role.parse(user.role) };
 
     const required = this.reflector.getAllAndOverride<Role[] | undefined>(ROLES, targets);
+    // Machine accounts are deny-by-default: only routes that name the role explicitly.
+    if (req.user.role === 'discovery_service' && !required?.includes('discovery_service')) {
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Service accounts may only call internal routes' });
+    }
     if (required && !required.includes(req.user.role)) {
       throw new ForbiddenException({ code: 'FORBIDDEN', message: `Requires role: ${required.join(' or ')}` });
     }

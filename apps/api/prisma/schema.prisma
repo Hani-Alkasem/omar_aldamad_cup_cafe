@@ -75,6 +75,8 @@ model assets {
   custom_fields                                             Json                    @default("{}")
   created_at                                                DateTime                @default(now()) @db.Timestamptz(6)
   updated_at                                                DateTime                @default(now()) @db.Timestamptz(6)
+  system_uuid                                               String?                 @db.Uuid
+  last_discovered_at                                        DateTime?               @db.Timestamptz(6)
   asset_components                                          asset_components[]
   asset_financials                                          asset_financials?
   asset_rack_occupancy                                      asset_rack_occupancy[]
@@ -85,6 +87,7 @@ model assets {
   ci_relationships_ci_relationships_source_asset_idToassets ci_relationships[]      @relation("ci_relationships_source_asset_idToassets")
   ci_relationships_ci_relationships_target_asset_idToassets ci_relationships[]      @relation("ci_relationships_target_asset_idToassets")
   contract_assets                                           contract_assets[]
+  discovery_results                                         discovery_results[]
   ip_addresses                                              ip_addresses[]
   maintenance_schedules                                     maintenance_schedules[]
   network_ports                                             network_ports[]
@@ -189,34 +192,90 @@ model contracts {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model discovery_jobs {
-  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                   String               @unique
-  target_cidr            Unsupported("cidr")?
-  protocol               discovery_protocol
-  schedule_cron          String?
-  credential_ref         String?
-  is_enabled             Boolean              @default(true)
-  last_run_at            DateTime?            @db.Timestamptz(6)
-  last_run_status        job_status           @default(never_run)
-  discovered_items_count Int                  @default(0)
-  created_at             DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime             @default(now()) @db.Timestamptz(6)
-  discovery_logs         discovery_logs[]
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model credentials {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String
+  kind              credential_kind
+  username          String?
+  secret_ciphertext Bytes
+  secret_iv         Bytes
+  secret_tag        Bytes
+  key_id            String
+  created_by        String?           @db.Uuid
+  last_used_at      DateTime?         @db.Timestamptz(6)
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  users             users?            @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  job_credentials   job_credentials[]
 }
 
-model discovery_logs {
-  id             BigInt         @id @default(autoincrement())
-  job_id         String         @db.Uuid
-  started_at     DateTime       @default(now()) @db.Timestamptz(6)
-  finished_at    DateTime?      @db.Timestamptz(6)
-  status         job_status
-  items_found    Int            @default(0)
-  message        String?
-  details        Json           @default("{}")
-  discovery_jobs discovery_jobs @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model discovery_jobs {
+  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String                 @unique
+  protocol        discovery_protocol
+  schedule_cron   String?
+  is_enabled      Boolean                @default(true)
+  last_run_at     DateTime?              @db.Timestamptz(6)
+  last_run_status job_status             @default(never_run)
+  created_at      DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime               @default(now()) @db.Timestamptz(6)
+  targets         Unsupported("_cidr")[]
+  vrf_id          String?                @db.Uuid
+  max_hosts       Int                    @default(1024)
+  options         Json                   @default("{}")
+  created_by      String?                @db.Uuid
+  users           users?                 @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  vrfs            vrfs?                  @relation(fields: [vrf_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  discovery_runs  discovery_runs[]
+  job_credentials job_credentials[]
+}
 
-  @@index([job_id, started_at(sort: Desc)], map: "discovery_logs_job_started_idx")
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model discovery_results {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  run_id         String            @db.Uuid
+  ip             String            @db.Inet
+  outcome        discovery_outcome
+  asset_id       String?           @db.Uuid
+  matched_by     String?
+  facts          Json              @default("{}")
+  changes        Json              @default("{}")
+  message        String?
+  created_at     DateTime          @default(now()) @db.Timestamptz(6)
+  assets         assets?           @relation(fields: [asset_id], references: [id], onUpdate: NoAction)
+  discovery_runs discovery_runs    @relation(fields: [run_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([run_id, ip])
+  @@index([asset_id, created_at(sort: Desc)], map: "discovery_results_asset_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model discovery_runs {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  job_id            String              @db.Uuid
+  trigger           run_trigger
+  requested_by      String?             @db.Uuid
+  status            job_status          @default(queued)
+  queued_at         DateTime            @default(now()) @db.Timestamptz(6)
+  started_at        DateTime?           @db.Timestamptz(6)
+  finished_at       DateTime?           @db.Timestamptz(6)
+  lease_expires_at  DateTime?           @db.Timestamptz(6)
+  hosts_total       Int                 @default(0)
+  hosts_scanned     Int                 @default(0)
+  hosts_responded   Int                 @default(0)
+  created_count     Int                 @default(0)
+  updated_count     Int                 @default(0)
+  unchanged_count   Int                 @default(0)
+  conflict_count    Int                 @default(0)
+  failed_count      Int                 @default(0)
+  error             String?
+  discovery_results discovery_results[]
+  discovery_jobs    discovery_jobs      @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users             users?              @relation(fields: [requested_by], references: [id], onUpdate: NoAction)
+
+  @@index([job_id, queued_at(sort: Desc)], map: "discovery_runs_job_queued_idx")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -262,6 +321,18 @@ model ip_addresses {
   @@index([ip(ops: InetOps)], map: "ip_addresses_ip_gist", type: Gist)
   @@index([port_id])
   @@index([subnet_id, ip], map: "ip_addresses_subnet_ip_idx")
+}
+
+model job_credentials {
+  job_id         String         @db.Uuid
+  credential_id  String         @db.Uuid
+  position       Int            @db.SmallInt
+  credentials    credentials    @relation(fields: [credential_id], references: [id], onUpdate: NoAction)
+  discovery_jobs discovery_jobs @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([job_id, credential_id])
+  @@unique([job_id, position])
+  @@index([credential_id], map: "job_credentials_credential_idx")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -444,14 +515,17 @@ model subnets {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model users {
-  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String
-  display_name String
-  role         user_role    @default(auditor)
-  is_active    Boolean      @default(true)
-  created_at   DateTime     @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime     @default(now()) @db.Timestamptz(6)
-  audit_logs   audit_logs[]
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email          String
+  display_name   String
+  role           user_role        @default(auditor)
+  is_active      Boolean          @default(true)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  audit_logs     audit_logs[]
+  credentials    credentials[]
+  discovery_jobs discovery_jobs[]
+  discovery_runs discovery_runs[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -484,13 +558,14 @@ model vlans {
 }
 
 model vrfs {
-  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String         @unique
-  rd           String?        @unique
-  created_at   DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
-  ip_addresses ip_addresses[]
-  subnets      subnets[]
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String           @unique
+  rd             String?          @unique
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  discovery_jobs discovery_jobs[]
+  ip_addresses   ip_addresses[]
+  subnets        subnets[]
 }
 
 enum asset_status {
@@ -523,6 +598,7 @@ enum audit_action {
   create
   update
   delete
+  access
 }
 
 enum cable_media {
@@ -545,10 +621,26 @@ enum contract_type {
   license
 }
 
+enum credential_kind {
+  snmp_v2c
+  snmp_v3
+  ssh_password
+  ssh_key
+}
+
 enum depreciation_method {
   none
   straight_line
   declining_balance
+}
+
+enum discovery_outcome {
+  created
+  updated
+  unchanged
+  conflict
+  auth_failed
+  error
 }
 
 enum discovery_protocol {
@@ -614,9 +706,15 @@ enum relationship_type {
   powered_by
 }
 
+enum run_trigger {
+  manual
+  schedule
+}
+
 enum user_role {
   admin
   dc_technician
   network_engineer
   auditor
+  discovery_service
 }

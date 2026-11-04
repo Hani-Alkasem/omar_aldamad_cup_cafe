@@ -33,5 +33,8 @@ export type IpStatus = z.infer<typeof IpStatus>;
 export const RelationshipType = z.enum(['runs_on', 'connects_to', 'depends_on', 'powered_by']);
 export type RelationshipType = z.infer<typeof RelationshipType>;
 
-export const Role = z.enum(['admin', 'dc_technician', 'network_engineer', 'auditor']);
+/** `discovery_service` is a machine account: it may only call the internal worker routes. */
+export const Role = z.enum(['admin', 'dc_technician', 'network_engineer', 'auditor', 'discovery_service']);
+export const HumanRole = Role.exclude(['discovery_service']);
+export type HumanRole = z.infer<typeof HumanRole>;
 export type Role = z.infer<typeof Role>;

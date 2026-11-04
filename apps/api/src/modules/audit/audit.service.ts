@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Tx } from '../../common/prisma.service';
 
-export type AuditAction = 'create' | 'update' | 'delete';
+/** `access` records a read of something sensitive (a credential handed to a worker). */
+export type AuditAction = 'create' | 'update' | 'delete' | 'access';
 
 export interface AuditEntry {
   entity: string;
@@ -36,7 +37,7 @@ export function snapshot(value: unknown): Record<string, unknown> {
 @Injectable()
 export class AuditService {
   async record(tx: Tx, entry: AuditEntry): Promise<void> {
-    const before = entry.action === 'create' ? null : snapshot(entry.before ?? {});
+    const before = entry.action === 'create' || entry.action === 'access' ? null : snapshot(entry.before ?? {});
     const after = entry.action === 'delete' ? null : snapshot(entry.after ?? {});
     const fields = changedFields(before, after);
     if (entry.action === 'update' && fields.length === 0) return;

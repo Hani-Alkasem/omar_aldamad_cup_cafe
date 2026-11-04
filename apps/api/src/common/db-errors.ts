@@ -21,6 +21,7 @@ const SQLSTATE_MAP: Record<string, { status: HttpStatus; code: string }> = {
   KB010: { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'POWER_CONNECTION_INVALID' },
   KB011: { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'PASS_THROUGH_INVALID' },
   KB012: { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'FINANCIALS_INVALID' },
+  KB020: { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'CREDENTIAL_KIND_MISMATCH' },
 };
 
 const PRISMA_CODE_MAP: Record<string, { status: HttpStatus; code: string }> = {
@@ -44,7 +45,8 @@ function driverMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
   const meta = err instanceof Prisma.PrismaClientKnownRequestError ? (err.meta as { message?: unknown } | undefined)?.message : undefined;
   const text = typeof meta === 'string' ? meta : raw;
-  return /message:\s*"([^"]+)"/.exec(text)?.[1] ?? text.split('\n').filter(Boolean).pop() ?? 'database error';
+  const quoted = /message:\s*"((?:[^"\\]|\\.)+)"/.exec(text)?.[1];
+  return quoted ? quoted.replace(/\\(.)/g, '$1') : (text.split('\n').filter(Boolean).pop() ?? 'database error');
 }
 
 export function toDomainError(err: unknown): DomainError | undefined {

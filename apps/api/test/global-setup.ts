@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 
 /**
@@ -25,6 +26,9 @@ export default async function setup() {
 
   process.env.DATABASE_URL = testUrl;
   process.env.JWT_SECRET ??= 'test-secret-that-is-at-least-32-characters-long';
+  process.env.DISCOVERY_SYNC_SCHEDULES ??= 'false';
+  process.env.DISCOVERY_SWEEPER ??= 'false';
+  process.env.VAULT_MASTER_KEY ??= randomBytes(32).toString('base64');
 
   return async () => {
     const c = new PrismaClient({ datasourceUrl: admin });

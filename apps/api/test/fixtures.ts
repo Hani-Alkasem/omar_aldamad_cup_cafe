@@ -10,7 +10,7 @@ export async function makeRack(prisma: PrismaClient, heightU = 42) {
   return prisma.racks.create({ data: { room_id: room.id, name: `rack-${tag}`, height_u: heightU } });
 }
 
-export async function makeUser(prisma: PrismaClient, role: 'admin' | 'dc_technician' | 'network_engineer' | 'auditor') {
+export async function makeUser(prisma: PrismaClient, role: 'admin' | 'dc_technician' | 'network_engineer' | 'auditor' | 'discovery_service') {
   return prisma.users.create({ data: { email: `${role}-${randomUUID().slice(0, 8)}@example.com`, display_name: role, role } });
 }
 

@@ -7,13 +7,14 @@ import { AssetsModule } from './modules/assets/assets.module';
 import { CablingModule } from './modules/cabling/cabling.module';
 import { ComponentsModule } from './modules/components/components.module';
 import { LifecycleModule } from './modules/lifecycle/lifecycle.module';
+import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { PowerModule } from './modules/power/power.module';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { IpamModule } from './modules/ipam/ipam.module';
 import { RacksModule } from './modules/racks/racks.module';
 
 @Module({
-  imports: [PrismaModule, AssetsModule, RacksModule, IpamModule, LifecycleModule, ComponentsModule, CablingModule, PowerModule],
+  imports: [PrismaModule, AssetsModule, RacksModule, IpamModule, LifecycleModule, ComponentsModule, CablingModule, PowerModule, DiscoveryModule],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

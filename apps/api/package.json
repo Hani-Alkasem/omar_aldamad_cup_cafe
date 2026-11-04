@@ -20,6 +20,8 @@
     "@nestjs/platform-express": "10.4.15",
     "@nestjs/swagger": "7.4.2",
     "@prisma/client": "6.2.1",
+    "bullmq": "5.34.6",
+    "cron-parser": "4.9.0",
     "ipaddr.js": "2.2.0",
     "jsonwebtoken": "9.0.2",
     "reflect-metadata": "0.2.2",

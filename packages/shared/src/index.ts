@@ -5,3 +5,4 @@ export * from './rack';
 export * from './lifecycle';
 export * from './cabling';
 export * from './power';
+export * from './discovery';
