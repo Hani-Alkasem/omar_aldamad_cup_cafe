@@ -123,6 +123,13 @@ export const HostFactsSchema = z.object({
   memoryGb: z.number().min(0).max(1e7).optional(),
   disks: z.array(z.object({ name: short(64), sizeGb: z.number().min(0).max(1e9), model: short(200).optional() })).max(256).default([]),
   interfaces: z.array(z.object({ name: short(64).min(1), mac: mac.optional(), speedMbps: z.number().int().positive().max(1_600_000).optional() })).max(1024).default([]),
+  /** Listening TCP sockets (server side of a dependency). */
+  listeners: z.array(z.object({ port: z.number().int().min(1).max(65535), process: short(64).optional() })).max(512).default([]),
+  /** Established TCP sessions; the reconciler keeps the client-side ones as dependencies. */
+  connections: z
+    .array(z.object({ remoteIp: z.string().min(2).max(45), remotePort: z.number().int().min(1).max(65535), localPort: z.number().int().min(1).max(65535), process: short(64).optional() }))
+    .max(4096)
+    .default([]),
   /** SHA-256 of the SSH host key, base64; a change against the stored value is flagged. */
   sshHostKey: z.string().regex(/^SHA256:[A-Za-z0-9+/=]{43,44}$/).optional(),
 });

@@ -18,8 +18,62 @@ export const INVENTORY_SCRIPT = [
   "echo '@@mem'; grep MemTotal /proc/meminfo 2>/dev/null",
   "echo '@@disks'; lsblk -dbnPo NAME,SIZE,TYPE,MODEL 2>/dev/null",
   "echo '@@links'; for i in /sys/class/net/*; do n=${i##*/}; printf '%s %s %s\\n' \"$n\" \"$(cat \"$i/address\" 2>/dev/null)\" \"$(cat \"$i/speed\" 2>/dev/null)\"; done",
+  // Sockets: ss (iproute2) first, netstat (net-tools) on older systems. Process names need privileges; they are optional.
+  "echo '@@listen'; ss -Htanp state listening 2>/dev/null || netstat -tlnp 2>/dev/null",
+  "echo '@@conns'; ss -Htanp state established 2>/dev/null || netstat -tnp 2>/dev/null | grep ESTABLISHED",
   "echo '@@end'",
 ].join('\n');
+
+const MAX_LISTENERS = 512;
+const MAX_CONNECTIONS = 4096;
+
+/** "0.0.0.0:5432", "[::]:22", "*:80", "[::ffff:10.0.0.9]:5432" → { ip, port } */
+function endpoint(text: string): { ip: string; port: number } | undefined {
+  const i = text.lastIndexOf(':');
+  if (i < 0) return undefined;
+  const port = Number(text.slice(i + 1));
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return undefined;
+  const ip = text.slice(0, i).replace(/^\[|\]$/g, '').replace(/^::ffff:/i, '').replace(/%.*$/, '');
+  return { ip, port };
+}
+
+/** users:(("postgres",pid=812,fd=6)) or 812/postgres */
+const processOf = (text: string | undefined) => /users:\(\("([^"]+)"/.exec(text ?? '')?.[1] ?? /^\d+\/([^\s]+)/.exec(text ?? '')?.[1];
+
+/** One socket line from ss (-H, state filter: Recv-Q Send-Q Local Peer Process) or netstat (Proto Recv-Q Send-Q Local Foreign State PID/Program). */
+export function parseSocketLine(line: string) {
+  const f = line.trim().split(/\s+/);
+  if (f[0] === 'tcp' || f[0] === 'tcp6') {
+    const local = endpoint(f[3] ?? '');
+    const peer = endpoint(f[4] ?? '');
+    return local ? { local, peer, process: processOf(f[6]) } : undefined;
+  }
+  if (f.length < 4 || !/^\d+$/.test(f[0])) return undefined;
+  const local = endpoint(f[2]);
+  return local ? { local, peer: endpoint(f[3]), process: processOf(f.slice(4).join(' ')) } : undefined;
+}
+
+export function parseSockets(listenLines: string[], connLines: string[]) {
+  const listeners = new Map<number, string | undefined>();
+  for (const l of listenLines) {
+    const s = parseSocketLine(l);
+    if (s && listeners.size < MAX_LISTENERS && !listeners.has(s.local.port)) listeners.set(s.local.port, s.process);
+  }
+  // Many sessions share one dependency (connection pools); one entry per remote endpoint and process.
+  const conns = new Map<string, { remoteIp: string; remotePort: number; localPort: number; process?: string }>();
+  for (const l of connLines) {
+    const s = parseSocketLine(l);
+    if (!s?.peer) continue;
+    const key = `${s.peer.ip}|${s.peer.port}|${s.process ?? ''}|${listeners.has(s.local.port) ? s.local.port : 'out'}`;
+    if (!conns.has(key) && conns.size < MAX_CONNECTIONS) {
+      conns.set(key, { remoteIp: s.peer.ip, remotePort: s.peer.port, localPort: s.local.port, ...(s.process ? { process: s.process.slice(0, 64) } : {}) });
+    }
+  }
+  return {
+    listeners: [...listeners].sort((a, b) => a[0] - b[0]).map(([port, process]) => ({ port, ...(process ? { process: process.slice(0, 64) } : {}) })),
+    connections: [...conns.values()],
+  };
+}
 
 const VIRTUAL_PRODUCT = /\b(vmware|virtualbox|kvm|qemu|virtual machine|hvm domu|bochs|xen|openstack nova|google compute engine|amazon ec2)\b/i;
 /** Interfaces that never identify hardware. */
@@ -79,6 +133,7 @@ export function parseInventory(ip: string, out: string, sshHostKey?: string): Ho
     ...(memKb > 0 ? { memoryGb: Math.round((memKb / 1024 / 1024) * 10) / 10 } : {}),
     disks,
     interfaces,
+    ...parseSockets(s('listen'), s('conns')),
     ...(sshHostKey ? { sshHostKey } : {}),
   };
 }

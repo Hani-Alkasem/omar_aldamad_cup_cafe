@@ -5,7 +5,7 @@ import { toDomainError } from '../../common/db-errors';
 import { PrismaService, TX_OPTIONS, type Tx } from '../../common/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { toAssetDto } from '../assets/assets.service';
-import { assetNameFor, inferType, isIdentityMac, resolveIdentity, type KnownAsset, type Match } from './reconcile';
+import { assetNameFor, inferType, isIdentityMac, resolveIdentity, servicePorts, type KnownAsset, type Match, type Outbound } from './reconcile';
 
 export interface ReconcileOutcome {
   outcome: 'created' | 'updated' | 'unchanged' | 'conflict';
@@ -45,6 +45,8 @@ function discoveryBlock(f: ParsedHostFacts) {
     sysDescr: f.sysDescr,
     sysObjectId: f.sysObjectId,
     sshHostKey: f.sshHostKey,
+    // Listening ports let other hosts' sessions be told apart from ephemeral noise.
+    listeners: f.listeners.length ? f.listeners.map((l) => l.port) : undefined,
   };
   for (const k of Object.keys(block)) if (block[k] === undefined) delete block[k];
   return block;
@@ -181,6 +183,74 @@ export class ReconcilerService {
     changes.components = { before: have.length, after: want.length };
     hw.before.discoveredComponents = JSON.parse(haveSig);
     hw.after.discoveredComponents = JSON.parse(signature(want));
+  }
+
+  /**
+   * Turn a host's client-side sessions into depends_on edges to the assets owning the remote IPs.
+   * Runs once per run, after every host is reconciled, so peers found in the same run resolve.
+   * Idempotent per run (observations are counted once per run id); edges are never deleted
+   * (an idle dependency shows as stale) and hand-made edges are never touched.
+   */
+  async syncDependencies(assetId: string, outbound: Outbound[], ctx: { userId: string; runId: string; vrfId: string | null; requestId?: string }) {
+    if (!outbound.length) return { added: 0, refreshed: 0 };
+    return this.prisma.$transaction(async (tx) => {
+      const remotes = await tx.$queryRaw<Array<{ ip: string; asset_id: string; name: string; listeners: number[] | null }>>`
+        SELECT host(i.ip) AS ip, a.id AS asset_id, a.name,
+               (SELECT array_agg(value::int) FROM jsonb_array_elements_text(a.custom_fields->'discovery'->'listeners')) AS listeners
+        FROM ip_addresses i JOIN assets a ON a.id = i.asset_id
+        WHERE i.ip = ANY(${outbound.map((o) => o.remoteIp)}::inet[]) AND i.vrf_id IS NOT DISTINCT FROM ${ctx.vrfId}::uuid`;
+      const byIp = new Map(remotes.map((r) => [r.ip, r]));
+
+      // One remote asset can own several of the IPs; merge per target.
+      const wanted = new Map<string, { ports: Set<number>; process: string | null }>();
+      for (const o of outbound) {
+        const r = byIp.get(o.remoteIp);
+        if (!r || r.asset_id === assetId) continue;
+        const ports = servicePorts(o.ports, r.listeners);
+        if (!ports.length) continue;
+        const w = wanted.get(r.asset_id) ?? { ports: new Set<number>(), process: o.process };
+        ports.forEach((p) => w.ports.add(p));
+        wanted.set(r.asset_id, w);
+      }
+      if (!wanted.size) return { added: 0, refreshed: 0 };
+
+      const existing = await tx.ci_relationships.findMany({
+        where: { source_asset_id: assetId, relationship_type: 'depends_on', target_asset_id: { in: [...wanted.keys()] } },
+      });
+      let added = 0;
+      let refreshed = 0;
+      const audit = { userId: ctx.userId, requestId: ctx.requestId };
+      for (const [target, w] of wanted) {
+        const ports = [...w.ports].sort((a, b) => a - b);
+        const cur = existing.find((e) => e.target_asset_id === target);
+        if (!cur) {
+          const edge = await tx.ci_relationships.create({
+            data: { source_asset_id: assetId, target_asset_id: target, relationship_type: 'depends_on', source: 'discovery', attributes: { ports, process: w.process, lastRunId: ctx.runId } },
+          });
+          await this.audit.record(tx, { entity: 'ci_relationship', entityId: edge.id, action: 'create', after: { source: assetId, target, type: 'depends_on', ports, process: w.process }, ...audit });
+          added++;
+          continue;
+        }
+        if (cur.source !== 'discovery') continue; // a person defined this edge; leave it alone
+        const attrs = cur.attributes as { ports?: number[]; process?: string | null; lastRunId?: string };
+        const prev = [...(attrs.ports ?? [])].sort((a, b) => a - b);
+        const merged = [...new Set([...prev, ...ports])].sort((a, b) => a - b);
+        const sameRun = attrs.lastRunId === ctx.runId;
+        await tx.ci_relationships.update({
+          where: { id: cur.id },
+          data: {
+            last_seen_at: new Date(),
+            ...(sameRun ? {} : { observation_count: { increment: 1 } }),
+            attributes: { ports: merged, process: w.process ?? attrs.process ?? null, lastRunId: ctx.runId },
+          },
+        });
+        if (merged.length !== prev.length) {
+          await this.audit.record(tx, { entity: 'ci_relationship', entityId: cur.id, action: 'update', before: { ports: prev }, after: { ports: merged }, ...audit });
+        }
+        refreshed++;
+      }
+      return { added, refreshed };
+    }, TX_OPTIONS);
   }
 
   private async syncIp(tx: Tx, assetId: string, f: ParsedHostFacts, vrfId: string | null, changes: Record<string, unknown>): Promise<string | null> {

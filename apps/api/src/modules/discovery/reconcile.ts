@@ -108,3 +108,49 @@ export function isIdentityMac(mac: string): boolean {
   if (parseInt(m.slice(0, 2), 16) & 1) return false;
   return !/^(00:00:5e:00:0[12]|00:00:0c:07:ac|00:00:0c:9f:f|00:07:b4:0)/.test(m);
 }
+
+/** Ephemeral range start used when the far side never told us what it listens on (IANA 49152; Linux 32768). */
+const EPHEMERAL_FLOOR = 32768;
+const NON_ROUTABLE = /^(0\.|169\.254\.|::$|fe80:|ff[0-9a-f]{2}:|22[4-9]\.|23\d\.)/i;
+const LOOPBACK = /^(127\.|::1$)/;
+
+export interface Outbound {
+  remoteIp: string;
+  ports: number[];
+  process: string | null;
+}
+
+/**
+ * Client-side sessions of a host: the local port is not one of its own listeners.
+ * Loopback, link-local, multicast and the host's own address are dropped; sessions are grouped per remote IP.
+ */
+export function outboundDependencies(facts: Pick<ParsedHostFacts, 'ip' | 'listeners' | 'connections'>): Outbound[] {
+  const own = new Set(facts.listeners.map((l) => l.port));
+  const byIp = new Map<string, { ports: Set<number>; processes: Map<string, number> }>();
+  for (const c of facts.connections) {
+    // Loopback peers are the host talking to itself, unless the host was itself reached on loopback (the lab simulator).
+    const loopback = LOOPBACK.test(c.remoteIp) && !LOOPBACK.test(facts.ip);
+    if (own.has(c.localPort) || NON_ROUTABLE.test(c.remoteIp) || loopback || c.remoteIp === facts.ip) continue;
+    const e = byIp.get(c.remoteIp) ?? { ports: new Set(), processes: new Map() };
+    e.ports.add(c.remotePort);
+    if (c.process) e.processes.set(c.process, (e.processes.get(c.process) ?? 0) + 1);
+    byIp.set(c.remoteIp, e);
+  }
+  return [...byIp].map(([remoteIp, e]) => ({
+    remoteIp,
+    ports: [...e.ports].sort((a, b) => a - b),
+    process: [...e.processes].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
+  }));
+}
+
+/**
+ * Which of the remote ports are real services. If the remote host reported its listeners, trust
+ * them exactly; otherwise drop ports in the ephemeral range (the far side of an inbound session).
+ */
+export function servicePorts(ports: number[], remoteListeners: number[] | null): number[] {
+  if (remoteListeners) {
+    const l = new Set(remoteListeners);
+    return ports.filter((p) => l.has(p));
+  }
+  return ports.filter((p) => p < EPHEMERAL_FLOOR);
+}

@@ -4,3 +4,6 @@
 
 :root { color-scheme: dark; }
 body { @apply bg-slate-950 text-slate-200 antialiased; }
+
+/* React Flow dark mode: sit on the page background instead of its own grey. */
+.react-flow { --xy-background-color: transparent; --xy-background-color-default: transparent; }

@@ -14,17 +14,34 @@ import { join } from 'node:path';
 import snmp from 'net-snmp';
 import { Server, utils } from 'ssh2';
 
+/** Canned `ss` output: app-01 and app-02 use PostgreSQL on build-vm-07, app-01 also talks to the switch's HTTPS API. */
+const SOCKETS: Record<string, { listen: string[]; conns: string[] }> = {
+  '127.0.0.11': {
+    listen: ['0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=701,fd=3))', '0 4096 0.0.0.0:8080 0.0.0.0:* users:(("java",pid=1201,fd=40))'],
+    conns: ['0 0 127.0.0.11:51234 127.0.0.13:5432 users:(("java",pid=1201,fd=51))', '0 0 127.0.0.11:51236 127.0.0.13:5432 users:(("java",pid=1201,fd=52))', '0 0 127.0.0.11:44310 127.0.0.20:443 users:(("python3",pid=1500,fd=7))', '0 0 127.0.0.11:8080 127.0.0.99:53001'],
+  },
+  '127.0.0.12': {
+    listen: ['0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=702,fd=3))', '0 4096 0.0.0.0:8080 0.0.0.0:* users:(("java",pid=1202,fd=40))'],
+    conns: ['0 0 127.0.0.12:40122 127.0.0.13:5432 users:(("java",pid=1202,fd=51))'],
+  },
+  '127.0.0.13': {
+    listen: ['0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=703,fd=3))', '0 244 0.0.0.0:5432 0.0.0.0:* users:(("postgres",pid=900,fd=6))'],
+    conns: ['0 0 127.0.0.13:5432 127.0.0.11:51234 users:(("postgres",pid=990,fd=9))', '0 0 127.0.0.13:5432 127.0.0.12:40122 users:(("postgres",pid=991,fd=9))'],
+  },
+};
+
 const HOSTS: Record<string, { name: string; uuid: string; serial: string; cpus: number; memKb: number; mac: string; product: string; virt: string }> = {
   '127.0.0.11': { name: 'app-01.lab.example.com', uuid: '4c4c4544-0031-3210-8051-b4c04f4b4e01', serial: 'LAB0001', cpus: 32, memKb: 131_072_000, mac: '3c:ec:ef:00:00:11', product: 'PowerEdge R660', virt: 'none' },
   '127.0.0.12': { name: 'app-02.lab.example.com', uuid: '4c4c4544-0031-3210-8051-b4c04f4b4e02', serial: 'LAB0002', cpus: 32, memKb: 131_072_000, mac: '3c:ec:ef:00:00:12', product: 'PowerEdge R660', virt: 'none' },
   '127.0.0.13': { name: 'build-vm-07.lab.example.com', uuid: '564d2b5e-8c1a-4f3e-9d2a-1b2c3d4e5f60', serial: 'VMware-56 4d 2b 5e', cpus: 8, memKb: 16_384_000, mac: '00:50:56:aa:00:13', product: 'VMware Virtual Platform', virt: 'vmware' },
 };
 
-function inventory(h: (typeof HOSTS)[string]) {
+function inventory(ip: string, h: (typeof HOSTS)[string]) {
+  const sock = SOCKETS[ip] ?? { listen: [], conns: [] };
   return [
     '@@hostname', h.name, '@@uuid', h.uuid, '@@serial', h.serial, '@@vendor', h.virt === 'none' ? 'Dell Inc.' : 'VMware, Inc.',
     '@@product', h.product, '@@virt', h.virt, '@@os', 'Ubuntu 24.04.1 LTS', '@@cpus', String(h.cpus), '@@mem', `MemTotal: ${h.memKb} kB`,
-    '@@disks', 'NAME="nvme0n1" SIZE="960197124096" TYPE="disk" MODEL="Dell Ent NVMe"', '@@links', 'lo 00:00:00:00:00:00 ', `eno1 ${h.mac} 25000`, '@@end', '',
+    '@@disks', 'NAME="nvme0n1" SIZE="960197124096" TYPE="disk" MODEL="Dell Ent NVMe"', '@@links', 'lo 00:00:00:00:00:00 ', `eno1 ${h.mac} 25000`, '@@listen', ...sock.listen, '@@conns', ...sock.conns, '@@end', '',
   ].join('\n');
 }
 
@@ -44,7 +61,7 @@ const ssh = new Server({ hostKeys: [hostKey.private] }, (client) => {
       accept().on('exec', (acc) => {
         const s = acc();
         const h = HOSTS[local];
-        if (h) s.write(inventory(h));
+        if (h) s.write(inventory(local, h));
         s.exit(h ? 0 : 1);
         s.end();
       }),

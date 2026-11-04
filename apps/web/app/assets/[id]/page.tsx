@@ -6,6 +6,8 @@ import {
   getAsset,
   getAssetContracts,
   getComponents,
+  getGraph,
+  getImpact,
   getFinancials,
   getMaintenance,
   getPorts,
@@ -14,6 +16,10 @@ import {
 } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
+
+/** Discovered components often have only a capacity: "32 cores", "256 GB". */
+const capacityText = (c: { kind: string; capacity: number | null }) =>
+  c.capacity == null ? '—' : c.kind === 'cpu' ? `${c.capacity} cores` : c.kind === 'memory' || c.kind === 'disk' ? gb(c.capacity) : String(c.capacity);
 
 const settle = <T,>(p: Promise<T>) => p.then((v) => ({ ok: true as const, v }), () => ({ ok: false as const }));
 
@@ -42,6 +48,7 @@ export default async function AssetPage({ params }: { params: { id: string } }) 
     settle(getFinancials(asset.id)),
     settle(getMaintenance(asset.id)),
   ]);
+  const [graph, impact] = await Promise.all([settle(getGraph({ root: asset.id, depth: 1 })), settle(getImpact(asset.id))]);
   const today = new Date().toISOString().slice(0, 10);
   const location = asset.rackId
     ? asset.depth === 'zero_u'
@@ -107,7 +114,7 @@ export default async function AssetPage({ params }: { params: { id: string } }) 
               <ul className="space-y-1 text-slate-300">
                 {components.v.items.map((c) => (
                   <li key={c.id} className="flex justify-between gap-3">
-                    <span className="min-w-0 truncate"><span className="uppercase text-slate-500">{c.kind}</span> {[c.manufacturer, c.model].filter(Boolean).join(' ') || '—'}</span>
+                    <span className="min-w-0 truncate"><span className="uppercase text-slate-500">{c.kind}</span> {[c.manufacturer, c.model].filter(Boolean).join(' ') || capacityText(c)}</span>
                     <span className="shrink-0 font-mono text-xs text-slate-400">{c.slot ?? ''}</span>
                   </li>
                 ))}
@@ -165,6 +172,31 @@ export default async function AssetPage({ params }: { params: { id: string } }) 
               <Stat label="Fully depreciated" value={financials.v.depreciation.fullyDepreciatedOn ?? '—'} />
             </dl>
           )}
+        </Section>
+
+        <Section title="Dependencies" action={<Link className="text-sm text-sky-400 hover:underline" href={`/topology?root=${asset.id}`}>Show on map</Link>}>
+          {!graph.ok || !impact.ok ? <Unavailable what="dependencies" /> : (() => {
+            const out = graph.v.edges.filter((e) => e.source === asset.id);
+            const inc = graph.v.edges.filter((e) => e.target === asset.id);
+            const name = (id: string) => graph.v.nodes.find((n) => n.id === id)?.name ?? 'asset';
+            const row = (id: string, ports: number[], stale: boolean) => (
+              <li key={id} className="flex items-center justify-between gap-3">
+                <Link href={`/assets/${id}`} className="min-w-0 truncate text-sky-400 hover:underline">{name(id)}</Link>
+                <span className={`shrink-0 font-mono text-xs ${stale ? 'text-slate-500' : 'text-slate-400'}`}>{ports.map((p) => `:${p}`).join(' ')}{stale ? ' stale' : ''}</span>
+              </li>
+            );
+            return (
+              <div className="space-y-3">
+                <p className="text-slate-300">
+                  If this fails: <strong className="text-white">{impact.v.assets.length}</strong> asset{impact.v.assets.length === 1 ? '' : 's'}
+                  {impact.v.applications.length > 0 && <> and <strong className="text-white">{impact.v.applications.map((a) => a.name).join(', ')}</strong></>} affected
+                </p>
+                {out.length > 0 && <div><p className="mb-1 text-xs text-slate-400">Depends on</p><ul className="space-y-1">{out.map((e) => row(e.target, e.ports, e.stale))}</ul></div>}
+                {inc.length > 0 && <div><p className="mb-1 text-xs text-slate-400">Used by</p><ul className="space-y-1">{inc.map((e) => row(e.source, e.ports, e.stale))}</ul></div>}
+                {!out.length && !inc.length && <Empty>No relationships recorded.</Empty>}
+              </div>
+            );
+          })()}
         </Section>
 
         <Section title="Discovery">

@@ -10,7 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@dagrejs/dagre": "1.1.4",
     "@itam/shared": "workspace:*",
+    "@xyflow/react": "12.3.6",
     "next": "14.2.35",
     "qrcode": "1.5.4",
     "react": "18.3.1",

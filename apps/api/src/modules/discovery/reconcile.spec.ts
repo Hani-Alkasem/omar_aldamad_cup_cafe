@@ -74,3 +74,37 @@ describe('isIdentityMac', () => {
     ['00:00:0c:07:ac:01', false],
   ])('%s → %s', (mac, ok) => expect(isIdentityMac(mac)).toBe(ok));
 });
+
+import { outboundDependencies, servicePorts } from './reconcile';
+describe('dependency derivation', () => {
+  const f = HostFactsSchema.parse({
+    ip: '10.0.0.5',
+    protocol: 'ssh',
+    listeners: [{ port: 22 }, { port: 8080 }],
+    connections: [
+      { remoteIp: '10.0.0.9', remotePort: 5432, localPort: 51234, process: 'java' },
+      { remoteIp: '10.0.0.9', remotePort: 6379, localPort: 51300, process: 'java' },
+      { remoteIp: '10.0.0.7', remotePort: 40112, localPort: 8080 }, // inbound: someone uses us
+      { remoteIp: '127.0.0.1', remotePort: 5432, localPort: 51400 },
+      { remoteIp: 'fe80::1', remotePort: 53, localPort: 51401 },
+      { remoteIp: '10.0.0.5', remotePort: 9100, localPort: 51402 },
+    ],
+  });
+
+  it('keeps client-side sessions grouped per remote host', () => {
+    expect(outboundDependencies(f)).toEqual([{ remoteIp: '10.0.0.9', ports: [5432, 6379], process: 'java' }]);
+  });
+
+  it('trusts reported listeners, otherwise drops ephemeral ports', () => {
+    expect(servicePorts([5432, 6379], [5432])).toEqual([5432]);
+    expect(servicePorts([443, 50123], null)).toEqual([443]);
+  });
+});
+
+describe('loopback peers', () => {
+  it('are kept only when the host itself was reached on loopback (lab simulator)', () => {
+    const conns = [{ remoteIp: '127.0.0.13', remotePort: 5432, localPort: 51234 }];
+    expect(outboundDependencies(HostFactsSchema.parse({ ip: '127.0.0.11', protocol: 'ssh', connections: conns }))).toHaveLength(1);
+    expect(outboundDependencies(HostFactsSchema.parse({ ip: '10.0.0.11', protocol: 'ssh', connections: conns }))).toHaveLength(0);
+  });
+});

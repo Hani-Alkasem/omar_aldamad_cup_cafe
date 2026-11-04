@@ -167,7 +167,7 @@ export class DiscoveryInternalController {
   @Post('runs/:id/finish')
   @HttpCode(200)
   @ApiBody(zodBody(FinishRunSchema))
-  finish(@Param('id', UuidPipe) id: string, @Body(new ZodPipe(FinishRunSchema)) body: FinishRunInput) {
-    return this.runsSvc.finish(id, body);
+  finish(@Param('id', UuidPipe) id: string, @Body(new ZodPipe(FinishRunSchema)) body: FinishRunInput, @CurrentUser() user: AuthUser, @RequestId() requestId?: string) {
+    return this.runsSvc.finish(id, body, { userId: user.id, requestId });
   }
 }

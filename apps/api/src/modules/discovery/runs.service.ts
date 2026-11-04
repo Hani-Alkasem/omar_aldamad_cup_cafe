@@ -6,6 +6,7 @@ import { parseIp } from '../ipam/cidr';
 import { CredentialsService } from './credentials.service';
 import { runDto } from './jobs.service';
 import { ReconcilerService } from './reconciler.service';
+import { outboundDependencies, type Outbound } from './reconcile';
 import { normaliseTargets } from './targets';
 
 type WorkerCtx = { userId: string; requestId?: string };
@@ -159,7 +160,10 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
         this.log.warn(`reconcile ${facts.ip} failed: ${(err as Error).message}`);
         res = { outcome: 'error' as const, assetId: null, matchedBy: null, changes: {}, message: `reconcile failed: ${(err as Error).message.slice(0, 300)}` };
       }
-      await this.upsertResult(this.prisma, runId, { ip: facts.ip, ...res, facts });
+      // Session lists can be thousands long: keep only the grouped outbound endpoints for the dependency pass.
+      const { connections, ...kept } = facts;
+      const outbound = outboundDependencies(facts);
+      await this.upsertResult(this.prisma, runId, { ip: facts.ip, ...res, facts: { ...kept, connectionCount: connections.length, ...(outbound.length ? { outbound } : {}) } });
       summary[res.outcome === 'error' ? 'failed' : res.outcome]++;
     }
     await this.recount(this.prisma, runId);
@@ -173,7 +177,26 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
       WHERE id = ${runId}::uuid AND status IN ('queued', 'running')`;
   }
 
-  async finish(runId: string, input: FinishRunInput) {
+  /** After all hosts are known: derive dependency edges from every reconciled host in the run. */
+  private async dependencyPass(runId: string, ctx: WorkerCtx) {
+    const rows = await this.prisma.$queryRaw<Array<{ asset_id: string; outbound: Outbound[]; vrf_id: string | null }>>`
+      SELECT r.asset_id, r.facts->'outbound' AS outbound, j.vrf_id
+      FROM discovery_results r JOIN discovery_runs d ON d.id = r.run_id JOIN discovery_jobs j ON j.id = d.job_id
+      WHERE r.run_id = ${runId}::uuid AND r.asset_id IS NOT NULL AND r.outcome IN ('created', 'updated', 'unchanged') AND r.facts ? 'outbound'`;
+    let added = 0;
+    for (const r of rows) {
+      try {
+        added += (await this.reconciler.syncDependencies(r.asset_id, r.outbound, { ...ctx, runId, vrfId: r.vrf_id })).added;
+      } catch (e) {
+        this.log.warn(`dependency pass for ${r.asset_id} failed: ${(e as Error).message}`);
+      }
+    }
+    return added;
+  }
+
+  async finish(runId: string, input: FinishRunInput, ctx?: WorkerCtx) {
+    const pending = await this.prisma.discovery_runs.findUnique({ where: { id: runId }, select: { status: true } });
+    if (pending && (pending.status === 'running' || pending.status === 'queued') && ctx) await this.dependencyPass(runId, ctx);
     return this.prisma.$transaction(async (tx) => {
       const r = await tx.discovery_runs.findUnique({ where: { id: runId } });
       if (!r) throw notFound('Discovery run', runId);

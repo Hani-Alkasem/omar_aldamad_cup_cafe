@@ -1,5 +1,5 @@
 import 'server-only';
-import type { DepreciationSummary, RackElevation, RackPowerSummary } from '@itam/shared';
+import type { DepreciationSummary, Graph, RackElevation, RackPowerSummary } from '@itam/shared';
 
 /** Server-side API client. The token stays on the server; the browser only talks to Next. */
 const API_URL = process.env.API_URL ?? 'http://localhost:4000/api/v1';
@@ -190,3 +190,26 @@ export const getJobRuns = (id: string, limit = 10) => api<DiscoveryRun[]>(`/disc
 export const getRun = (id: string) => api<DiscoveryRun>(`/discovery/runs/${enc(id)}`);
 export const getRunResults = (id: string, outcome?: DiscoveryOutcome) =>
   api<DiscoveryResult[]>(`/discovery/runs/${enc(id)}/results${outcome ? `?outcome=${outcome}` : ''}`);
+
+/* ---------- Phase 4: dependency mapping ---------- */
+
+export interface Impact {
+  root: { id: string; name: string };
+  assets: Array<{ id: string; name: string; type: string; status: string; depth: number }>;
+  applications: Array<{ id: string; name: string; criticality: string }>;
+}
+export interface Application {
+  id: string;
+  name: string;
+  description: string | null;
+  owner: string | null;
+  criticality: 'tier0' | 'tier1' | 'tier2' | 'tier3';
+  members: Array<{ assetId: string; role: string | null; name?: string; type?: string; status?: string }>;
+}
+
+export const getGraph = (q: { root: string; depth?: number; direction?: 'up' | 'down' | 'both'; includeStale?: boolean }) =>
+  api<Graph>(`/cmdb/graph?${new URLSearchParams({ root: q.root, depth: String(q.depth ?? 2), direction: q.direction ?? 'both', includeStale: String(Boolean(q.includeStale)) })}`);
+export const getImpact = (id: string) => api<Impact>(`/assets/${enc(id)}/impact`);
+export const getApplications = () => api<Application[]>('/applications');
+export const getApplication = (id: string) => api<Application>(`/applications/${enc(id)}`);
+export const getApplicationGraph = (id: string, includeStale = false) => api<Graph>(`/applications/${enc(id)}/graph?includeStale=${includeStale}`);
