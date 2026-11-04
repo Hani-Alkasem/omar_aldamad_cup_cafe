@@ -1,18 +1,123 @@
+# Local development:   docker compose up -d                 (postgres + redis on 127.0.0.1)
+# Full stack:          docker compose --profile app up -d   (adds migrate, api, dispatcher, web, worker)
+# Demo lab:            docker compose --profile app --profile lab up -d
+# First run of the full stack: see README "Run with Docker".
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://itam:${POSTGRES_PASSWORD:-itam}@postgres:5432/itam
+  REDIS_URL: redis://redis:6379
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (32+ random characters)}
+  VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:?set VAULT_MASTER_KEY in .env (openssl rand -base64 32)}
+  VAULT_PREVIOUS_KEYS: ${VAULT_PREVIOUS_KEYS:-}
+  DISCOVERY_TZ: ${DISCOVERY_TZ:-UTC}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+  WEBHOOK_ALLOW_PRIVATE_CIDRS: ${WEBHOOK_ALLOW_PRIVATE_CIDRS:-}
+
+x-hardening: &hardening
+  init: true
+  read_only: true
+  tmpfs: ["/tmp"]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  restart: unless-stopped
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: itam
-      POSTGRES_PASSWORD: itam
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-itam}
       POSTGRES_DB: itam
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:5432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U itam"]
       interval: 5s
       retries: 10
+
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: ["redisdata:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    profiles: ["app"]
+    build: { context: ., target: api }
+    image: itam/api:local
+    command: ["node_modules/.bin/prisma", "migrate", "deploy"]
+    environment: *app-env
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: "no"
+    init: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+
+  api:
+    <<: *hardening
+    profiles: ["app"]
+    image: itam/api:local
+    environment:
+      <<: *app-env
+      CORS_ORIGINS: ${PUBLIC_BASE_URL:-http://localhost:3000}
+    ports: ["4000:4000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  dispatcher:
+    <<: *hardening
+    profiles: ["app"]
+    build: { context: ., target: dispatcher }
+    image: itam/dispatcher:local
+    environment: *app-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    <<: *hardening
+    profiles: ["app"]
+    build: { context: ., target: web }
+    image: itam/web:local
+    environment:
+      API_URL: http://api:4000/api/v1
+      API_TOKEN: ${API_TOKEN:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+    tmpfs: ["/tmp", "/app/apps/web/.next/cache"]
+    ports: ["3000:3000"]
+    depends_on: { api: { condition: service_healthy } }
+
+  worker:
+    <<: *hardening
+    profiles: ["app"]
+    build: { context: ., target: worker }
+    image: itam/worker:local
+    environment:
+      API_URL: http://api:4000/api/v1
+      # The compose network is the trusted overlay this flag exists for; use TLS between hosts.
+      ALLOW_INSECURE_API: "true"
+      REDIS_URL: redis://redis:6379
+      WORKER_CLIENT_ID: ${WORKER_CLIENT_ID:-}
+      WORKER_CLIENT_SECRET: ${WORKER_CLIENT_SECRET:-}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    depends_on: { api: { condition: service_healthy } }
+
+  # Shares the worker's network namespace, so the worker reaches the simulated hosts on
+  # 127.0.0.11-13 (SSH :2222) and 127.0.0.20 (SNMP :1161) exactly as in local development.
+  lab:
+    profiles: ["lab"]
+    build: { context: ., target: lab }
+    image: itam/lab:local
+    network_mode: "service:worker"
+    init: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    depends_on: [worker]
+
 volumes:
   pgdata:
+  redisdata:

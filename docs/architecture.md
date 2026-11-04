@@ -30,9 +30,9 @@ flowchart LR
   end
 
   subgraph Workers["Discovery & integration workers"]
-    DW[apps/discovery-worker · TypeScript<br/>SNMP v2c/v3 · SSH (Phase 3)<br/>WinRM · cloud APIs (later)]
-    REC[Reconciler<br/>dedupe by UUID → serial → MAC]
-    WH[Webhook dispatcher<br/>Jira SM · ServiceNow · Slack]
+    DW[apps/discovery-worker · TypeScript<br/>SNMP v2c/v3 · SSH inventory + sockets<br/>WinRM · cloud APIs (later)]
+    REC[Reconciler in the API<br/>UUID → serial → MAC → IP<br/>dependency edges at run finish]
+    WH[Dispatcher · dist/dispatcher.js<br/>signed webhooks · Slack · Jira · ServiceNow]
   end
 
   B --> SSR --> REST
@@ -42,9 +42,9 @@ flowchart LR
   SVC --> AUD --> PG
   SVC --> PG
   SVC -- enqueue jobs --> RD
-  RD --> DW --> REC -- upsert CIs --> REST
-  RD --> WH
-  DW -. decrypt creds .-> VAULT
+  RD --> DW -- results over HTTPS --> REC --> PG
+  DW -. short-lived token, claims creds .-> VAULT
+  PG -- outbox_events → webhook_deliveries --> WH
   WS <-. job events .- RD
 ```
 
@@ -58,7 +58,9 @@ flowchart LR
 | IPAM | Subnet create/tree/utilisation, allocate/reserve/release | Port MAC lookup (groundwork for CAM mapping) | DNS, DHCP scopes, ARP/CAM ingestion |
 | DCIM | Interactive 42U elevation, front/rear, drag-to-move | Ports, cables, patch-panel pass-through, path trace, PDU outlets, rack power budget | Live power telemetry (SNMP), floor plans |
 | UI | Rack elevation | Mobile asset page, QR label sheet, contract expiry and coverage gaps, rack power panel | Dependency map |
-| Discovery | Tables only | | Phase 3: vault, jobs, BullMQ schedules, SNMP/SSH worker, reconciliation, review UI. Later: WinRM, vSphere/AWS/Azure, ARP/CAM ingestion |
+| Discovery | Tables only | | Phase 3: vault, jobs, BullMQ schedules, SNMP/SSH worker, reconciliation, review UI. Phase 4: socket-based dependency mapping, client-credential worker auth. Later: WinRM, vSphere/AWS/Azure, ARP/CAM ingestion |
+| Integrations | | | Phase 4: transactional outbox, signed webhooks, Slack, Jira, ServiceNow, dispatcher with retries, replay, SSRF guard |
+| Delivery | | | Phase 4: multi-target Dockerfile, hardened compose stack, GitHub Actions CI |
 
 ### Phase 2 flows
 
@@ -103,6 +105,27 @@ sequenceDiagram
   K->>A: finish
 ```
 
+### Phase 4: dependencies, outbox, packaging
+
+```mermaid
+flowchart LR
+  subgraph tx["One database transaction"]
+    C[change: asset, edge, run…] --> A[audit_logs row]
+    A --> O[outbox_events row]
+    O -- trigger: fan-out by type / entity.* / * --> D[webhook_deliveries]
+  end
+  D -- FOR UPDATE SKIP LOCKED + lease --> X[dispatcher replicas]
+  X -- SSRF-checked HTTPS --> T1[generic receiver<br/>HMAC t=,v1=]
+  X --> T2[Slack]
+  X --> T3[Jira issue]
+  X --> T4[ServiceNow incident]
+  X -- 5xx / timeout: backoff · 4xx: dead · 12 tries: dead --> D
+```
+
+- **Why an outbox:** an event exists if and only if its change committed. A broker publish after commit could be lost; one inside the transaction could fire for a change that rolled back.
+- **Dependency edges:** derived when a run finishes, from each host's client-side sessions (`ss`). They are counted once per run, never deleted, shown as stale after 14 days, and never touched if a person created them.
+- **Worker authentication:** service clients exchange an id and secret (stored as a scrypt hash) for a 15-minute token. Rotation and revocation invalidate tokens already issued.
+
 ## Integrity rules enforced by PostgreSQL
 
 Every rule below holds even if a client bypasses the API:
@@ -115,6 +138,9 @@ Every rule below holds even if a client bypasses the API:
 - **Power (KB010):** a cord runs outlet → inlet, between different assets, at the same voltage. Each outlet and inlet carries one cord (unique). Plugging in creates a `powered_by` CMDB edge; unplugging the last cord between two assets removes it.
 - **Cabling:** each port carries at most one cable (unique on both endpoints); the API also locks both ports `FOR UPDATE` to return a clear `PORT_IN_USE`.
 - **Discovery (KB020):** a job's credentials must fit its protocol, and the protocol can't change while credentials are attached. At most one queued or running run per job (partial unique index). Run counters can't go negative. SMBIOS `system_uuid` is unique. Credential rows must hold a 12-byte IV and a 16-byte tag. `audit_logs` accepts `access` rows (no before image).
+- **Outbox and deliveries:** events are never updated (KB006), only pruned by age along with their deliveries. A dedupe key stops scheduled and per-host events from firing twice. Each subscription gets one delivery per event (unique). A delivery is `succeeded` exactly when it has a `delivered_at`. Webhook secrets need a 12-byte IV and a 16-byte tag.
+- **Relationships:** each edge has a provenance (`manual`, `discovery` or `power`), `observation_count >= 1` and `last_seen_at >= first_seen_at`. Applications have case-insensitively unique names.
+- **Service clients:** only a well-formed scrypt hash can be stored.
 - **Lifecycle:** contract `end_date >= start_date`; contract numbers unique per vendor; vendor names unique case-insensitively; salvage ≤ cost and in-service ≥ purchase date (CHECK); maintenance `next_due_on` is a generated column.
 
 The API also pre-checks rack placement and CIDR validity so it can return friendly 409/422 bodies. The constraints are the race-proof backstop.

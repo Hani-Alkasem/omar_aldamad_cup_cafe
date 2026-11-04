@@ -17,6 +17,11 @@ An enterprise IT asset, data-centre and IP management platform in the spirit of 
   - a credential vault (AES-256-GCM, secrets never returned by the API)
   - scheduled and on-demand jobs
   - reconciliation into the CMDB by system UUID → serial → MAC → IP, with conflicts held for review
+- **Phase 4:**
+  - application dependency mapping: TCP sessions collected over SSH become `depends_on` edges, shown on an interactive topology map with blast radius and applications
+  - outbound integrations: a transactional outbox feeds HMAC-signed webhooks, Slack, Jira and ServiceNow through a separate dispatcher, with retries, dead letters and replay
+  - service-client credentials for the worker: short-lived tokens instead of a long-lived JWT
+  - container images for every service, a full-stack compose file and a GitHub Actions pipeline
 
 See **[docs/architecture.md](docs/architecture.md)** for the system diagram and phase plan.
 
@@ -25,6 +30,7 @@ apps/api        NestJS 10 · Prisma 6 · hand-written SQL migrations (prisma/mig
 apps/web        Next.js 14 App Router · Tailwind · RackElevation component
 apps/discovery-worker  BullMQ worker · SNMP (net-snmp) and SSH (ssh2) collectors · lab simulator
 packages/shared Zod schemas + TypeScript types shared by API, web and worker
+Dockerfile      one multi-target build: api · dispatcher · web · worker · lab
 ```
 
 ## Quick start
@@ -45,8 +51,11 @@ pnpm --filter @itam/web dev          # http://localhost:3000/racks  (or /racks/d
 # QR labels: open a rack → Print labels, or /labels?ids=<uuid,uuid>. Labels encode
 # $PUBLIC_BASE_URL/a/<asset tag>, which redirects to the mobile asset page.
 
-# discovery worker (a separate process; scale it horizontally)
-export WORKER_TOKEN=$(pnpm --silent --filter @itam/api token --role discovery_service --expires 30d)
+# webhook dispatcher (a separate process; scale it horizontally)
+pnpm --filter @itam/api dispatcher
+
+# discovery worker: the seed prints WORKER_CLIENT_ID / WORKER_CLIENT_SECRET once
+export WORKER_CLIENT_ID=... WORKER_CLIENT_SECRET=...
 pnpm --filter @itam/discovery-worker dev
 
 # no network gear? three SSH servers and an SNMP switch on loopback:
@@ -65,6 +74,27 @@ curl -sH "$H" -H 'content-type: application/json' $U/discovery/jobs -d "{\"name\
 # then open http://localhost:3000/discovery and press Run now (the web token must be admin or network_engineer)
 ```
 
+## Run with Docker
+
+```bash
+cp .env.example .env        # set JWT_SECRET, VAULT_MASTER_KEY and POSTGRES_PASSWORD
+docker compose --profile app build
+docker compose --profile app up -d     # migrate runs once, then api, dispatcher, web and worker start
+
+# first run: an admin token for the web app, and credentials for the worker
+docker compose exec api node dist/cli.js create-admin --email you@example.com --expires 30d   # → API_TOKEN in .env
+docker compose exec api node dist/cli.js create-service-client --name discovery-worker >> .env
+docker compose --profile app up -d     # picks up the new .env values
+
+# optional demo hosts (shares the worker's network namespace)
+docker compose --profile app --profile lab up -d
+```
+
+- **Runtime hardening:** every service runs as the non-root `node` user with a read-only root filesystem, all capabilities dropped and `no-new-privileges`. Health checks are built into each image.
+- **No downloads at runtime:** the Prisma engines are baked into the image, so `migrate` works offline.
+- **Only web (3000) and api (4000) are published.** Postgres and Redis bind to 127.0.0.1 for local development.
+- **Behind a TLS-intercepting proxy, build with:** `docker build --secret id=ca,src=ca.pem --build-arg HTTPS_PROXY=...`
+
 ## Tests
 
 ```bash
@@ -73,7 +103,7 @@ TEST_DATABASE_ADMIN_URL=postgresql://itam:itam@localhost:5432/postgres pnpm test
 pnpm typecheck
 ```
 
-- **`apps/api`, 103 tests:**
+- **`apps/api`, 146 tests:**
   - Unit tests: rack geometry, CIDR maths, depreciation, cable path trace, rack power budget.
   - Database integrity: U-space EXCLUDE, rack height, subnet nesting and duplicates, IP-in-subnet, append-only audit, the CMDB blast-radius CTE.
   - API end to end: RBAC, a 409 with the conflicting device and suggested free slots, an 8-way placement race with exactly one winner, PATCH moves with before/after audit diffs, 50 concurrent IP allocations returning 50 distinct addresses, `SUBNET_FULL`, IPv6.
@@ -91,8 +121,31 @@ pnpm typecheck
     - service account confined to internal routes; credential hand-out audited as `access`
     - reconciliation: creates, idempotent retries, NIC-moved and host-key-change conflicts, accepting a new key
     - enqueue only after commit, compensation when Redis is down; lease re-claim and the sweeper
-- **`apps/discovery-worker`, 19 tests:** against a real in-process SSH server and SNMP agent (v2c and v3 authPriv), plus target expansion, credential ordering, batching, stop and shutdown.
-- **`apps/web`, 8 tests:** rack layout maths (grid rows, ghosts, free gaps, utilisation, kW/BTU, drop placement).
+  - Dependencies:
+    - edges derived at run finish (peers found later in the same run resolve)
+    - ephemeral, loopback and inbound sessions filtered
+    - observations counted once per run
+    - graph directions, blast radius, applications
+    - manual edges vs stale discovered edges vs power edges
+  - Integrations:
+    - outbox commits with the change
+    - pattern fan-out
+    - signed delivery to a real local receiver
+    - retry, give-up and replay
+    - 4xx dead letters, ping isolation
+    - SSRF blocking at send time
+    - daily dedupe
+  - Service clients: scrypt hashing, token exchange, rotation and revocation killing old tokens, uniform errors, rate limits.
+- **`apps/discovery-worker`, 23 tests:**
+  - against a real in-process SSH server and SNMP agent (v2c and v3 authPriv)
+  - `ss`/`netstat` parsing
+  - target expansion, credential ordering, batching, stop and shutdown
+  - token refresh
+- **`apps/web`, 12 tests:** rack layout maths, topology layout (deterministic, consumers left of dependencies).
+- **CI** (`.github/workflows/ci.yml`):
+  - typecheck and all suites against a Postgres 16 service container
+  - a production web build
+  - every image built, checked to run as non-root and, for the API image, to start with no network access
 
 ## Key design decisions
 
@@ -170,6 +223,42 @@ worker ─finish─▶ API
 | `GET /discovery/jobs/:id/runs`, `GET /discovery/runs/:id`, `GET /discovery/runs/:id/results?outcome=` | all |
 | `DELETE /assets/:id/discovery/ssh-host-key` | admin, dc_technician |
 | `POST /internal/discovery/{jobs/:id/runs, runs/:id/claim, runs/:id/hosts, runs/:id/finish}` | `discovery_service` only |
+
+## Phase 4 API
+
+| Route | Who | Notes |
+|---|---|---|
+| `GET /cmdb/graph?root=&depth=2&direction=up\|down\|both&includeStale=false` | all | nodes with applications; edges with ports, process, last seen, stale flag; capped at 2,000 edges |
+| `GET /assets/:id/impact` | all | everything that transitively depends on the asset, and the applications affected |
+| `POST /cmdb/relationships`, `DELETE /cmdb/relationships/:id` | admin, network_engineer | manual edges; a discovered edge can be removed only once stale; power edges never |
+| `GET/POST /applications`, `GET/PATCH/DELETE /applications/:id`, `PUT /applications/:id/members`, `GET /applications/:id/graph` | read: all; write: admin, network_engineer | |
+| `GET/POST /webhooks`, `PATCH/DELETE /webhooks/:id`, `POST /webhooks/:id/test`, `GET /webhooks/:id/deliveries`, `POST /webhook-deliveries/:id/replay`, `GET /webhooks/event-types` | admin | secrets are write-only; a generic webhook's signing secret is shown once |
+| `POST /auth/token` | public | `{clientId, clientSecret}` → 15-minute bearer token |
+| `GET/POST /service-clients`, `POST /service-clients/:id/rotate`, `DELETE /service-clients/:id` | admin | secret shown once; rotation and revocation end existing tokens within 30 s |
+
+### Dependency mapping
+
+- **What is collected:** the SSH inventory also reads listening and established TCP sockets (`ss`, or `netstat` as a fallback).
+- **When edges are built:** at the end of each run, once every host's IP is known. Each client-side session becomes `host depends_on server`, with its ports and process name.
+- **Which sessions count:** a port counts only if the far host reported it as a listener. If the far host wasn't discovered over SSH, ports in the ephemeral range don't count.
+- **Edges are never deleted.** A dependency not seen for 14 days is shown dashed as stale, and only then can someone remove it.
+- **Hand-made edges are never touched by discovery.**
+
+### Webhooks
+
+- **Events:**
+  - Every audited change emits `<entity>.<action>` (for example `asset.created`) in the same transaction as the change.
+  - Further events: `discovery.conflict`, `discovery.run.finished`, `contract.expiring` (inside its notice window, daily) and `maintenance.due`.
+- **Subscriptions** match an exact type, `entity.*`, or `*`.
+- **Verifying a generic webhook:**
+  - The signature header is `X-ITAM-Signature: t=<unix>,v1=<hex>`, where `v1 = HMAC-SHA256(secret, "<t>.<raw body>")`.
+  - Reject signatures older than 5 minutes.
+  - Dedupe on `X-ITAM-Delivery`. Delivery is at-least-once.
+- **Retries:** about a day of retries with backoff, and `Retry-After` is honoured. A 4xx response other than 408/429 is not retried.
+- **SSRF protection:**
+  - Targets must resolve to public addresses; this is checked in the socket's DNS lookup.
+  - Redirects are never followed.
+  - On-prem targets need `WEBHOOK_ALLOW_PRIVATE_CIDRS`.
 
 ## Schema workflow
 
