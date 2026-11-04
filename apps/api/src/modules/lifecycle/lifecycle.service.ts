@@ -129,6 +129,17 @@ export class LifecycleService {
     }, TX_OPTIONS);
   }
 
+  /** Every contract covering one asset, soonest-ending first. */
+  async assetContracts(assetId: string) {
+    if (!(await this.prisma.assets.findUnique({ where: { id: assetId }, select: { id: true } }))) throw notFound('Asset', assetId);
+    const rows = await this.prisma.contracts.findMany({
+      where: { contract_assets: { some: { asset_id: assetId } } },
+      include: this.contractInclude,
+      orderBy: { end_date: 'asc' },
+    });
+    return rows.map((c) => this.contractDto(c));
+  }
+
   async getContract(id: string) {
     const c = await this.prisma.contracts.findUnique({ where: { id }, include: this.contractInclude });
     if (!c) throw notFound('Contract', id);

@@ -54,6 +54,10 @@ describe('Phase 2: lifecycle, components, cabling, power', () => {
         .expect(201);
       expect(c.body).toMatchObject({ status: 'active', daysLeft: 20, assets: [{ id: covered.id }] });
 
+      const mine = (await api().get(`/api/v1/assets/${covered.id}/contracts`).set(as('auditor')).expect(200)).body;
+      expect(mine.map((x: { id: string }) => x.id)).toEqual([c.body.id]);
+      expect((await api().get(`/api/v1/assets/${bare.id}/contracts`).set(as('auditor')).expect(200)).body).toEqual([]);
+
       const expiring = await api().get('/api/v1/contracts/expiring?withinDays=30').set(as('auditor')).expect(200);
       const hit = expiring.body.find((x: { id: string }) => x.id === c.body.id);
       expect(hit).toMatchObject({ inNoticeWindow: true });
@@ -201,6 +205,27 @@ describe('Phase 2: lifecycle, components, cabling, power', () => {
       expect(after.singleFed).toEqual([{ id: srv.id, name: srv.name, feeds: ['A'] }]);
       expect(after.pdus.find((p: { pduId: string }) => p.pduId === pduA.id).loadW).toBe(750);
       expect(await prisma.ci_relationships.count({ where: { source_asset_id: srv.id, target_asset_id: pduB.id, relationship_type: 'powered_by' } })).toBe(0);
+    });
+  });
+
+  describe('power graph trigger', () => {
+    it('keeps powered_by when a cord moves to another outlet on the same PDU, drops it when moved away', async () => {
+      const pdu = await asset('pdu');
+      const pdu2 = await asset('pdu');
+      const srv = await asset('physical_server');
+      const pp = async (asset_id: string, name: string, kind: 'inlet' | 'outlet') => (await prisma.power_ports.create({ data: { asset_id, name, kind } })).id;
+      const [o1, o2, o3, inlet] = [await pp(pdu.id, 'O1', 'outlet'), await pp(pdu.id, 'O2', 'outlet'), await pp(pdu2.id, 'O1', 'outlet'), await pp(srv.id, 'PSU1', 'inlet')];
+      const conn = await prisma.power_connections.create({ data: { outlet_port_id: o1, inlet_port_id: inlet } });
+      const edge = (target: string) => prisma.ci_relationships.count({ where: { source_asset_id: srv.id, target_asset_id: target, relationship_type: 'powered_by' } });
+
+      await prisma.power_connections.update({ where: { id: conn.id }, data: { outlet_port_id: o2 } });
+      expect(await edge(pdu.id)).toBe(1);
+
+      await prisma.power_connections.update({ where: { id: conn.id }, data: { outlet_port_id: o3 } });
+      expect([await edge(pdu.id), await edge(pdu2.id)]).toEqual([0, 1]);
+
+      await prisma.power_connections.delete({ where: { id: conn.id } });
+      expect(await edge(pdu2.id)).toBe(0);
     });
   });
 

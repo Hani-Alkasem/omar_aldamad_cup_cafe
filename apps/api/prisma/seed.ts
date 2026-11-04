@@ -43,6 +43,7 @@ async function main() {
         { name: 'db-01', type: 'physical_server', model: serverModel, start_u: 22, face: 'front', power: 720, temp: 26 },
         { name: 'nas-01', type: 'storage_array', model: storageModel, start_u: 10, face: 'front', power: 880, temp: 29 },
         { name: 'pdu-a01-l', type: 'pdu', model: pduModel, start_u: null, face: null, power: 0, temp: null },
+        { name: 'pdu-a01-r', type: 'pdu', model: pduModel, start_u: null, face: null, power: 0, temp: null },
       ] as const;
 
       let n = 1;
@@ -79,8 +80,90 @@ async function main() {
         await tx.$executeRaw`INSERT INTO subnets (cidr, name) VALUES (${cidr}::cidr, ${name})`;
       }
     }
-  });
+
+    if ((await tx.vendors.count()) === 0) await seedLifecycle(tx, rack.id);
+  }, { timeout: 60_000 });
   console.log('seed: done');
+}
+
+type SeedTx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
+const day = (offset: number) => new Date(Date.now() + offset * 86_400_000);
+
+/** Phase 2 demo data: contracts in every state, hardware, cabling through the patch panel, A/B power. */
+async function seedLifecycle(tx: SeedTx, rackId: string) {
+  const byName = new Map((await tx.assets.findMany({ where: { rack_id: rackId } })).map((a) => [a.name, a]));
+  const id = (name: string) => byName.get(name)!.id;
+
+  const dell = await tx.vendors.create({ data: { name: 'Dell Technologies', support_phone: '+1-800-624-9897', website: 'https://www.dell.com' } });
+  const arista = await tx.vendors.create({ data: { name: 'Arista Networks', support_email: 'support@arista.com' } });
+  const netapp = await tx.vendors.create({ data: { name: 'NetApp' } });
+
+  const contract = (vendor_id: string, contract_type: 'warranty' | 'support', contract_number: string, start: number, end: number, names: string[], cost?: number) =>
+    tx.contracts.create({
+      data: {
+        vendor_id, contract_type, contract_number, start_date: day(start), end_date: day(end), cost, notice_days: 60,
+        contract_assets: { create: names.map((n) => ({ asset_id: id(n) })) },
+      },
+    });
+  await contract(dell.id, 'warranty', 'DELL-PS-7781', -700, 395, ['esx-01', 'esx-02'], 4800);
+  await contract(dell.id, 'support', 'DELL-PS-7790', -1000, 21, ['db-01'], 2100);
+  await contract(arista.id, 'support', 'ARI-A-2231', -360, 75, ['core-sw-01', 'core-sw-02'], 6200);
+  await contract(netapp.id, 'warranty', 'NTAP-99812', -1460, -12, ['nas-01']);
+  // esx-03 deliberately has no contract: it shows up under coverage gaps.
+
+  const po = await tx.purchase_orders.create({ data: { po_number: 'PO-2024-0142', vendor_id: dell.id, order_date: day(-720), total_amount: 38400 } });
+  for (const n of ['esx-01', 'esx-02', 'esx-03', 'db-01']) {
+    await tx.asset_financials.create({
+      data: { asset_id: id(n), purchase_order_id: po.id, purchase_date: day(-720), in_service_date: day(-700), purchase_cost: 9600, useful_life_months: 60, salvage_value: 600 },
+    });
+  }
+
+  for (const n of ['esx-01', 'esx-02', 'esx-03', 'db-01']) {
+    await tx.asset_components.createMany({
+      data: [
+        { asset_id: id(n), kind: 'cpu', slot: 'CPU1', manufacturer: 'Intel', model: 'Xeon Gold 6430', capacity: 32 },
+        { asset_id: id(n), kind: 'cpu', slot: 'CPU2', manufacturer: 'Intel', model: 'Xeon Gold 6430', capacity: 32 },
+        ...Array.from({ length: 8 }, (_, i) => ({ asset_id: id(n), kind: 'memory' as const, slot: `DIMM A${i + 1}`, manufacturer: 'Samsung', model: 'M321R8GA0BB0', capacity: 64 })),
+        { asset_id: id(n), kind: 'disk', slot: 'Bay 0', manufacturer: 'Dell', model: 'PM1733a NVMe', capacity: 3840 },
+        { asset_id: id(n), kind: 'disk', slot: 'Bay 1', manufacturer: 'Dell', model: 'PM1733a NVMe', capacity: 3840 },
+      ],
+    });
+  }
+
+  await tx.maintenance_schedules.create({ data: { asset_id: id('nas-01'), title: 'Controller firmware review', interval_days: 90, first_due_on: day(-3) } });
+  await tx.maintenance_schedules.create({ data: { asset_id: id('pdu-a01-l'), title: 'Thermal scan of outlets', interval_days: 180, first_due_on: day(10) } });
+
+  // Network: servers → front patch panel → (pass-through) → rear → core switch.
+  const port = async (asset: string, name: string, kind: string, extra = '') =>
+    (await tx.$queryRawUnsafe<Array<{ id: string }>>(`INSERT INTO network_ports (asset_id, port_name, kind${extra ? ', pass_through_port_id' : ''}) VALUES ($1::uuid, $2, $3::port_kind${extra ? ', $4::uuid' : ''}) RETURNING id`, ...[id(asset), name, kind, ...(extra ? [extra] : [])]))[0].id;
+  const cable = (a: string, b: string, label: string) => tx.$executeRaw`INSERT INTO cables (a_port_id, b_port_id, media, label) VALUES (${a}::uuid, ${b}::uuid, 'cat6', ${label})`;
+  const servers = ['esx-01', 'esx-02', 'esx-03', 'db-01'];
+  for (const [i, n] of servers.entries()) {
+    const nic = await port(n, 'eth1', 'ethernet');
+    await port(n, 'eth2', 'ethernet');
+    const rear = await port('patch-a01-f', `P${i + 1}-R`, 'patch_rear');
+    const front = await port('patch-a01-f', `P${i + 1}`, 'patch_front', rear);
+    const sw = await port('core-sw-01', `Ethernet${i + 1}`, 'ethernet');
+    await cable(nic, front, `A01-${String(i + 1).padStart(3, '0')}`);
+    await cable(rear, sw, `A01-${String(i + 101).padStart(3, '0')}`);
+  }
+
+  // Power: two vertical PDUs on feeds A and B; servers dual-corded, switches dual-corded, esx-03 left on one cord.
+  for (const [pdu, feed] of [['pdu-a01-l', 'A'], ['pdu-a01-r', 'B']] as const) {
+    await tx.power_ports.create({ data: { asset_id: id(pdu), name: 'Inlet', kind: 'inlet', voltage: 230, max_amps: 32 } });
+    await tx.power_ports.createMany({ data: Array.from({ length: 24 }, (_, i) => ({ asset_id: id(pdu), name: `${feed}${i + 1}`, kind: 'outlet' as const, feed, voltage: 230 })) });
+  }
+  const outlets = await tx.power_ports.findMany({ where: { kind: 'outlet', asset_id: { in: [id('pdu-a01-l'), id('pdu-a01-r')] } } });
+  const outlet = (name: string) => outlets.find((o) => o.name === name)!.id;
+  let slot = 1;
+  for (const n of ['core-sw-01', 'core-sw-02', 'esx-01', 'esx-02', 'esx-03', 'db-01', 'nas-01']) {
+    const [psu1, psu2] = await Promise.all(
+      ['PSU1', 'PSU2'].map((name) => tx.power_ports.create({ data: { asset_id: id(n), name, kind: 'inlet', voltage: 230 } })),
+    );
+    await tx.power_connections.create({ data: { outlet_port_id: outlet(`A${slot}`), inlet_port_id: psu1.id } });
+    if (n !== 'esx-03') await tx.power_connections.create({ data: { outlet_port_id: outlet(`B${slot}`), inlet_port_id: psu2.id } });
+    slot++;
+  }
 }
 
 main()

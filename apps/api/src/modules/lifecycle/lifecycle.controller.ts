@@ -91,6 +91,12 @@ export class LifecycleController {
     return this.lifecycle.linkAssets(id, body, false, { user, requestId });
   }
 
+  @Get('assets/:id/contracts')
+  @ApiOperation({ summary: 'Warranty, support and other contracts covering this asset' })
+  assetContracts(@Param('id', UuidPipe) id: string) {
+    return this.lifecycle.assetContracts(id);
+  }
+
   @Get('assets/:id/financials')
   @ApiOperation({ summary: 'Purchase and depreciation data with current book value' })
   financials(@Param('id', UuidPipe) id: string) {
