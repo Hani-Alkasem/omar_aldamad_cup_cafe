@@ -1,0 +1,447 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model asset_components {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asset_id      String   @db.Uuid
+  kind          String
+  slot          String?
+  manufacturer  String?
+  model         String?
+  serial_number String?
+  capacity      Decimal? @db.Decimal
+  attributes    Json     @default("{}")
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  assets        assets   @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([asset_id])
+}
+
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+model asset_rack_occupancy {
+  asset_id String                   @db.Uuid
+  rack_id  String                   @db.Uuid
+  face     rack_face
+  u_range  Unsupported("int4range")
+  assets   assets                   @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  racks    racks                    @relation(fields: [rack_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([asset_id, face])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model assets {
+  id                                                        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                                                      String
+  asset_tag                                                 String?
+  serial_number                                             String?
+  type                                                      asset_type
+  status                                                    asset_status           @default(active)
+  model_id                                                  String?                @db.Uuid
+  parent_id                                                 String?                @db.Uuid
+  rack_id                                                   String?                @db.Uuid
+  start_u                                                   Int?                   @db.SmallInt
+  size_u                                                    Int                    @default(1) @db.SmallInt
+  face                                                      rack_face?
+  depth                                                     mount_depth            @default(full)
+  power_draw_w                                              Int?
+  custom_fields                                             Json                   @default("{}")
+  created_at                                                DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at                                                DateTime               @default(now()) @db.Timestamptz(6)
+  asset_components                                          asset_components[]
+  asset_rack_occupancy                                      asset_rack_occupancy[]
+  hardware_models                                           hardware_models?       @relation(fields: [model_id], references: [id], onUpdate: NoAction)
+  assets                                                    assets?                @relation("assetsToassets", fields: [parent_id], references: [id], onUpdate: NoAction)
+  other_assets                                              assets[]               @relation("assetsToassets")
+  racks                                                     racks?                 @relation(fields: [rack_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  ci_relationships_ci_relationships_source_asset_idToassets ci_relationships[]     @relation("ci_relationships_source_asset_idToassets")
+  ci_relationships_ci_relationships_target_asset_idToassets ci_relationships[]     @relation("ci_relationships_target_asset_idToassets")
+  ip_addresses                                              ip_addresses[]
+  network_ports                                             network_ports[]
+
+  @@index([custom_fields(ops: JsonbPathOps)], map: "assets_custom_fields_gin", type: Gin)
+  @@index([model_id])
+  @@index([parent_id])
+  @@index([type, status])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model audit_logs {
+  id             BigInt       @id @default(autoincrement())
+  entity         String
+  entity_id      String       @db.Uuid
+  action         audit_action
+  before         Json?
+  after          Json?
+  changed_fields String[]     @default([])
+  user_id        String?      @db.Uuid
+  request_id     String?
+  at             DateTime     @default(now()) @db.Timestamptz(6)
+  users          users?       @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([entity, entity_id, at(sort: Desc)], map: "audit_logs_entity_idx")
+  @@index([user_id, at(sort: Desc)], map: "audit_logs_user_idx")
+}
+
+model buildings {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id    String   @db.Uuid
+  name       String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  sites      sites    @relation(fields: [site_id], references: [id], onUpdate: NoAction)
+  rooms      rooms[]
+
+  @@unique([site_id, name])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model cables {
+  id                                            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  a_port_id                                     String        @unique(map: "cables_a_port_key") @db.Uuid
+  b_port_id                                     String        @unique(map: "cables_b_port_key") @db.Uuid
+  media                                         cable_media   @default(cat6)
+  label                                         String?
+  length_m                                      Decimal?      @db.Decimal(6, 2)
+  circuit_id                                    String?
+  created_at                                    DateTime      @default(now()) @db.Timestamptz(6)
+  network_ports_cables_a_port_idTonetwork_ports network_ports @relation("cables_a_port_idTonetwork_ports", fields: [a_port_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  network_ports_cables_b_port_idTonetwork_ports network_ports @relation("cables_b_port_idTonetwork_ports", fields: [b_port_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ci_relationships {
+  id                                              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_asset_id                                 String            @db.Uuid
+  target_asset_id                                 String            @db.Uuid
+  relationship_type                               relationship_type
+  attributes                                      Json              @default("{}")
+  created_at                                      DateTime          @default(now()) @db.Timestamptz(6)
+  assets_ci_relationships_source_asset_idToassets assets            @relation("ci_relationships_source_asset_idToassets", fields: [source_asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assets_ci_relationships_target_asset_idToassets assets            @relation("ci_relationships_target_asset_idToassets", fields: [target_asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([source_asset_id, target_asset_id, relationship_type])
+  @@index([target_asset_id, relationship_type], map: "ci_relationships_target_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model discovery_jobs {
+  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String               @unique
+  target_cidr            Unsupported("cidr")?
+  protocol               discovery_protocol
+  schedule_cron          String?
+  credential_ref         String?
+  is_enabled             Boolean              @default(true)
+  last_run_at            DateTime?            @db.Timestamptz(6)
+  last_run_status        job_status           @default(never_run)
+  discovered_items_count Int                  @default(0)
+  created_at             DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime             @default(now()) @db.Timestamptz(6)
+  discovery_logs         discovery_logs[]
+}
+
+model discovery_logs {
+  id             BigInt         @id @default(autoincrement())
+  job_id         String         @db.Uuid
+  started_at     DateTime       @default(now()) @db.Timestamptz(6)
+  finished_at    DateTime?      @db.Timestamptz(6)
+  status         job_status
+  items_found    Int            @default(0)
+  message        String?
+  details        Json           @default("{}")
+  discovery_jobs discovery_jobs @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([job_id, started_at(sort: Desc)], map: "discovery_logs_job_started_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model hardware_models {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manufacturer_id     String        @db.Uuid
+  model_number        String
+  size_u              Int           @default(1) @db.SmallInt
+  depth               mount_depth   @default(full)
+  power_ports_count   Int           @default(0) @db.SmallInt
+  network_ports_count Int           @default(0) @db.SmallInt
+  typical_power_w     Int?
+  front_image_url     String?
+  rear_image_url      String?
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime      @default(now()) @db.Timestamptz(6)
+  assets              assets[]
+  manufacturers       manufacturers @relation(fields: [manufacturer_id], references: [id], onUpdate: NoAction)
+
+  @@unique([manufacturer_id, model_number])
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model ip_addresses {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ip            String         @db.Inet
+  subnet_id     String         @db.Uuid
+  vrf_id        String?        @db.Uuid
+  asset_id      String?        @db.Uuid
+  port_id       String?        @db.Uuid
+  status        ip_status      @default(assigned)
+  dns_name      String?
+  description   String?
+  last_seen_at  DateTime?      @db.Timestamptz(6)
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime       @default(now()) @db.Timestamptz(6)
+  assets        assets?        @relation(fields: [asset_id], references: [id], onUpdate: NoAction)
+  network_ports network_ports? @relation(fields: [port_id], references: [id], onUpdate: NoAction)
+  subnets       subnets        @relation(fields: [subnet_id], references: [id], onUpdate: NoAction)
+  vrfs          vrfs?          @relation(fields: [vrf_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([asset_id])
+  @@index([ip(ops: InetOps)], map: "ip_addresses_ip_gist", type: Gist)
+  @@index([port_id])
+  @@index([subnet_id, ip], map: "ip_addresses_subnet_ip_idx")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model manufacturers {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  hardware_models hardware_models[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model network_ports {
+  id                                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asset_id                               String                  @db.Uuid
+  port_name                              String
+  mac_address                            Unsupported("macaddr")?
+  speed_mbps                             Int?
+  vlan_id                                String?                 @db.Uuid
+  is_uplink                              Boolean                 @default(false)
+  created_at                             DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                             DateTime                @default(now()) @db.Timestamptz(6)
+  cables_cables_a_port_idTonetwork_ports cables?                 @relation("cables_a_port_idTonetwork_ports")
+  cables_cables_b_port_idTonetwork_ports cables?                 @relation("cables_b_port_idTonetwork_ports")
+  ip_addresses                           ip_addresses[]
+  assets                                 assets                  @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  vlans                                  vlans?                  @relation(fields: [vlan_id], references: [id], onUpdate: NoAction)
+
+  @@unique([asset_id, port_name])
+  @@index([vlan_id], map: "network_ports_vlan_idx")
+}
+
+model rack_rows {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  room_id    String   @db.Uuid
+  name       String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  rooms      rooms    @relation(fields: [room_id], references: [id], onUpdate: NoAction)
+  racks      racks[]
+
+  @@unique([room_id, name])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model racks {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  row_id               String?                @db.Uuid
+  room_id              String                 @db.Uuid
+  name                 String
+  height_u             Int                    @default(42) @db.SmallInt
+  numbering_desc       Boolean                @default(false)
+  max_power_w          Int?
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  asset_rack_occupancy asset_rack_occupancy[]
+  assets               assets[]
+  rooms                rooms                  @relation(fields: [room_id], references: [id], onUpdate: NoAction)
+  rack_rows            rack_rows?             @relation(fields: [row_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([room_id, name])
+  @@index([row_id])
+}
+
+model rooms {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  building_id String      @db.Uuid
+  name        String
+  floor       String?
+  created_at  DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime    @default(now()) @db.Timestamptz(6)
+  rack_rows   rack_rows[]
+  racks       racks[]
+  buildings   buildings   @relation(fields: [building_id], references: [id], onUpdate: NoAction)
+
+  @@unique([building_id, name])
+}
+
+model sites {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String      @unique
+  address    String?
+  created_at DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at DateTime    @default(now()) @db.Timestamptz(6)
+  buildings  buildings[]
+  vlans      vlans[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model subnets {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cidr          Unsupported("cidr")
+  name          String?
+  description   String?
+  vrf_id        String?             @db.Uuid
+  vlan_id       String?             @db.Uuid
+  parent_id     String?             @db.Uuid
+  created_at    DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime            @default(now()) @db.Timestamptz(6)
+  ip_addresses  ip_addresses[]
+  subnets       subnets?            @relation("subnetsTosubnets", fields: [parent_id], references: [id], onUpdate: NoAction)
+  other_subnets subnets[]           @relation("subnetsTosubnets")
+  vlans         vlans?              @relation(fields: [vlan_id], references: [id], onUpdate: NoAction)
+  vrfs          vrfs?               @relation(fields: [vrf_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([parent_id])
+  @@index([vlan_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model users {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String
+  display_name String
+  role         user_role    @default(auditor)
+  is_active    Boolean      @default(true)
+  created_at   DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime     @default(now()) @db.Timestamptz(6)
+  audit_logs   audit_logs[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model vlans {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  site_id       String?         @db.Uuid
+  vid           Int             @db.SmallInt
+  name          String
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  network_ports network_ports[]
+  subnets       subnets[]
+  sites         sites?          @relation(fields: [site_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+}
+
+model vrfs {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String         @unique
+  rd           String?        @unique
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
+  ip_addresses ip_addresses[]
+  subnets      subnets[]
+}
+
+enum asset_status {
+  planned
+  in_stock
+  active
+  maintenance
+  retired
+  disposed
+}
+
+enum asset_type {
+  physical_server
+  blade_server
+  virtual_machine
+  switch
+  router
+  firewall
+  load_balancer
+  storage_array
+  patch_panel
+  pdu
+  ups
+  workstation
+  mobile_device
+  other
+}
+
+enum audit_action {
+  create
+  update
+  delete
+}
+
+enum cable_media {
+  cat5e
+  cat6
+  cat6a
+  fiber_om3
+  fiber_om4
+  fiber_os2
+  dac
+  aoc
+  power
+}
+
+enum discovery_protocol {
+  snmp
+  ssh
+  wmi
+  api
+  nmap
+}
+
+enum ip_status {
+  available
+  assigned
+  reserved
+  dhcp
+}
+
+enum job_status {
+  never_run
+  queued
+  running
+  succeeded
+  failed
+  partial
+}
+
+enum mount_depth {
+  full
+  half
+  zero_u
+}
+
+enum rack_face {
+  front
+  rear
+}
+
+enum relationship_type {
+  runs_on
+  connects_to
+  depends_on
+  powered_by
+}
+
+enum user_role {
+  admin
+  dc_technician
+  network_engineer
+  auditor
+}
