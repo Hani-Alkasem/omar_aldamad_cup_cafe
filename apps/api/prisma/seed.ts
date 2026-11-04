@@ -1,5 +1,6 @@
 // Demo data: one site with a 42U rack of typical gear, users for each role, and an IP plan.
 import { PrismaClient } from '@prisma/client';
+import { hashSecret, newClientSecret, prefixOf } from '../src/modules/service-clients/secrets';
 
 const prisma = new PrismaClient();
 
@@ -85,6 +86,14 @@ async function main() {
 
     if ((await tx.vendors.count()) === 0) await seedLifecycle(tx, rack.id);
   }, { timeout: 60_000 });
+
+  // Discovery worker credentials: shown once; rotate with POST /service-clients/:id/rotate.
+  const worker = await prisma.users.findFirst({ where: { email: 'discovery-worker@example.com' } });
+  if (worker && !(await prisma.service_clients.findFirst({ where: { user_id: worker.id } }))) {
+    const secret = newClientSecret();
+    const c = await prisma.service_clients.create({ data: { name: 'discovery-worker (seed)', user_id: worker.id, secret_hash: await hashSecret(secret), secret_prefix: prefixOf(secret) } });
+    console.log(`seed: service client for the worker\n  WORKER_CLIENT_ID=${c.id}\n  WORKER_CLIENT_SECRET=${secret}`);
+  }
   console.log('seed: done');
 }
 

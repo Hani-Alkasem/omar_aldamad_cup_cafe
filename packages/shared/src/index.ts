@@ -8,3 +8,4 @@ export * from './power';
 export * from './discovery';
 export * from './cmdb';
 export * from './integrations';
+export * from './auth';

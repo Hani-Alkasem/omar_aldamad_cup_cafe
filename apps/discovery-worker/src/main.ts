@@ -1,6 +1,7 @@
 import { DISCOVERY_QUEUE, type DiscoveryQueueJob } from '@itam/shared';
 import { DelayedError, Worker, type Job } from 'bullmq';
 import { ApiError, HttpDiscoveryApi } from './api-client';
+import { ClientCredentials, StaticToken } from './auth';
 import { SnmpCollector } from './collectors/snmp';
 import { SshCollector } from './collectors/ssh';
 import { loadConfig } from './config';
@@ -9,7 +10,8 @@ import { executeRun } from './run';
 const log = (msg: string, extra: Record<string, unknown> = {}) => console.log(JSON.stringify({ t: new Date().toISOString(), msg, ...extra }));
 
 const config = loadConfig();
-const api = new HttpDiscoveryApi(config.apiUrl, config.token);
+const auth = config.client ? new ClientCredentials(config.apiUrl, config.client.id, config.client.secret) : new StaticToken(config.token!);
+const api = new HttpDiscoveryApi(config.apiUrl, auth);
 const collectors = { snmp: new SnmpCollector(), ssh: new SshCollector() };
 const shutdown = new AbortController();
 
@@ -58,7 +60,7 @@ const worker = new Worker<DiscoveryQueueJob>(DISCOVERY_QUEUE, handle, {
   lockDuration: 60_000,
 });
 
-worker.on('ready', () => log('worker ready', { queue: DISCOVERY_QUEUE, concurrency: config.concurrency, api: config.apiUrl }));
+worker.on('ready', () => log('worker ready', { queue: DISCOVERY_QUEUE, concurrency: config.concurrency, api: config.apiUrl, auth: config.client ? `client ${config.client.id}` : 'static token' }));
 worker.on('failed', (job, err) => log('job failed', { jobId: job?.data.jobId, runId: job?.data.runId, error: err.message }));
 worker.on('error', (err) => log('worker error', { error: err.message }));
 

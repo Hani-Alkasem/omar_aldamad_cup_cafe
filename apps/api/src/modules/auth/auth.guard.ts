@@ -23,6 +23,24 @@ export class AuthGuard implements CanActivate {
     this.secret = secret;
   }
 
+  /**
+   * Machine tokens carry their client id. They die with the client (revoked, expired) and with its
+   * secret (issued before the last rotation). Cached briefly: revocation applies within SERVICE_CLIENT_CACHE_MS (30 s).
+   */
+  private readonly clientCacheMs = Number(process.env.SERVICE_CLIENT_CACHE_MS ?? 30_000);
+  private readonly clientCache = new Map<string, { at: number; revoked: boolean; expiresAt: number | null; rotatedAt: number }>();
+  private async clientValid(id: string, issuedAt: number) {
+    let c = this.clientCache.get(id);
+    if (!c || Date.now() - c.at > this.clientCacheMs) {
+      const row = await this.prisma.service_clients.findUnique({ where: { id }, select: { revoked_at: true, expires_at: true, secret_rotated_at: true } });
+      if (!row) return false;
+      c = { at: Date.now(), revoked: Boolean(row.revoked_at), expiresAt: row.expires_at?.getTime() ?? null, rotatedAt: row.secret_rotated_at.getTime() };
+      this.clientCache.set(id, c);
+    }
+    // iat has second precision; allow the second in which the rotation happened.
+    return !c.revoked && (c.expiresAt == null || c.expiresAt > Date.now()) && issuedAt >= Math.floor(c.rotatedAt / 1000) * 1000;
+  }
+
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const targets = [ctx.getHandler(), ctx.getClass()];
     if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, targets)) return true;
@@ -33,12 +51,19 @@ export class AuthGuard implements CanActivate {
     if (!token) throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Missing bearer token' });
 
     let sub: string;
+    let clientId: string | undefined;
+    let issuedAt = 0;
     try {
       const payload = jwt.verify(token, this.secret, { algorithms: ['HS256'] });
       if (typeof payload !== 'object' || typeof payload.sub !== 'string') throw new Error('no subject');
       sub = payload.sub;
+      clientId = typeof payload.cid === 'string' ? payload.cid : undefined;
+      issuedAt = (payload.iat ?? 0) * 1000;
     } catch {
       throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Invalid or expired token' });
+    }
+    if (clientId && !(await this.clientValid(clientId, issuedAt))) {
+      throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Service client revoked, expired or rotated' });
     }
 
     const user = await this.prisma.users.findUnique({ where: { id: sub }, select: { id: true, email: true, role: true, is_active: true } });

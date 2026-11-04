@@ -2,7 +2,8 @@ import { loadConfig } from '../src/config';
 
 describe('loadConfig', () => {
   it('requires a token', () => {
-    expect(() => loadConfig({})).toThrow(/WORKER_TOKEN/);
+    expect(() => loadConfig({})).toThrow(/WORKER_CLIENT_ID/);
+    expect(loadConfig({ WORKER_CLIENT_ID: 'c', WORKER_CLIENT_SECRET: 's' }).client).toEqual({ id: 'c', secret: 's' });
   });
 
   it('refuses plain HTTP off-box, because claims carry decrypted credentials', () => {
