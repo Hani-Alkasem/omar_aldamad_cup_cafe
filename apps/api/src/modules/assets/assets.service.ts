@@ -22,6 +22,8 @@ export interface AssetDto {
   face: assets['face'];
   depth: assets['depth'];
   powerDrawW: number | null;
+  systemUuid: string | null;
+  lastDiscoveredAt: string | null;
   customFields: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -42,6 +44,8 @@ export function toAssetDto(a: assets): AssetDto {
     face: a.face,
     depth: a.depth,
     powerDrawW: a.power_draw_w,
+    systemUuid: a.system_uuid,
+    lastDiscoveredAt: a.last_discovered_at?.toISOString() ?? null,
     customFields: (a.custom_fields ?? {}) as Record<string, unknown>,
     createdAt: a.created_at.toISOString(),
     updatedAt: a.updated_at.toISOString(),

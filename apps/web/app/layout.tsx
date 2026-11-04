@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="font-semibold text-white">ITAM</Link>
             <Link href="/racks" className="text-slate-400 hover:text-white">Racks</Link>
             <Link href="/contracts" className="text-slate-400 hover:text-white">Contracts</Link>
-            <Link href="/racks/demo" className="text-slate-400 hover:text-white">Demo rack</Link>
+            <Link href="/discovery" className="text-slate-400 hover:text-white">Discovery</Link>
           </nav>
         </header>
         <main className="mx-auto max-w-6xl px-4 py-8 print:p-0">{children}</main>

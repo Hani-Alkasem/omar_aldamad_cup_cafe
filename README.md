@@ -12,19 +12,25 @@ An enterprise IT asset, data-centre and IP management platform in the spirit of 
   - ports and cabling with patch-panel path trace
   - PDU outlets and a rack power budget
   - QR asset labels that open a mobile asset page
+- **Phase 3:**
+  - agentless discovery over SNMP v2c/v3 and SSH, run by a separate worker service on BullMQ
+  - a credential vault (AES-256-GCM, secrets never returned by the API)
+  - scheduled and on-demand jobs
+  - reconciliation into the CMDB by system UUID → serial → MAC → IP, with conflicts held for review
 
 See **[docs/architecture.md](docs/architecture.md)** for the system diagram and phase plan.
 
 ```
 apps/api        NestJS 10 · Prisma 6 · hand-written SQL migrations (prisma/migrations)
 apps/web        Next.js 14 App Router · Tailwind · RackElevation component
-packages/shared Zod schemas + TypeScript types shared by API and web
+apps/discovery-worker  BullMQ worker · SNMP (net-snmp) and SSH (ssh2) collectors · lab simulator
+packages/shared Zod schemas + TypeScript types shared by API, web and worker
 ```
 
 ## Quick start
 
 ```bash
-cp .env.example .env                 # set JWT_SECRET (32+ chars)
+cp .env.example .env                 # set JWT_SECRET (32+ chars) and VAULT_MASTER_KEY (openssl rand -base64 32)
 docker compose up -d                 # postgres:16 + redis:7
 pnpm install
 pnpm --filter @itam/shared build
@@ -38,6 +44,25 @@ pnpm --filter @itam/web dev          # http://localhost:3000/racks  (or /racks/d
 
 # QR labels: open a rack → Print labels, or /labels?ids=<uuid,uuid>. Labels encode
 # $PUBLIC_BASE_URL/a/<asset tag>, which redirects to the mobile asset page.
+
+# discovery worker (a separate process; scale it horizontally)
+export WORKER_TOKEN=$(pnpm --silent --filter @itam/api token --role discovery_service --expires 30d)
+pnpm --filter @itam/discovery-worker dev
+
+# no network gear? three SSH servers and an SNMP switch on loopback:
+pnpm --filter @itam/discovery-worker lab    # SSH :2222 on 127.0.0.11-13 (discovery / lab-password), SNMP 127.0.0.20:1161 (lab-ro)
+```
+
+### Try discovery against the lab
+
+```bash
+H="Authorization: Bearer $(pnpm --silent --filter @itam/api token --role admin)"; U=http://localhost:4000/api/v1
+curl -sH "$H" -H 'content-type: application/json' $U/subnets -d '{"cidr":"127.0.0.0/24","name":"Lab"}'
+C=$(curl -sH "$H" -H 'content-type: application/json' $U/credentials \
+  -d '{"name":"Lab Linux","kind":"ssh_password","username":"discovery","secret":{"password":"lab-password"}}' | jq -r .id)
+curl -sH "$H" -H 'content-type: application/json' $U/discovery/jobs -d "{\"name\":\"Lab servers\",\"protocol\":\"ssh\",
+  \"targets\":[\"127.0.0.8/29\"],\"credentialIds\":[\"$C\"],\"scheduleCron\":\"0 3 * * *\",\"options\":{\"port\":2222}}"
+# then open http://localhost:3000/discovery and press Run now (the web token must be admin or network_engineer)
 ```
 
 ## Tests
@@ -48,7 +73,7 @@ TEST_DATABASE_ADMIN_URL=postgresql://itam:itam@localhost:5432/postgres pnpm test
 pnpm typecheck
 ```
 
-- **`apps/api`, 65 tests:**
+- **`apps/api`, 103 tests:**
   - Unit tests: rack geometry, CIDR maths, depreciation, cable path trace, rack power budget.
   - Database integrity: U-space EXCLUDE, rack height, subnet nesting and duplicates, IP-in-subnet, append-only audit, the CMDB blast-radius CTE.
   - API end to end: RBAC, a 409 with the conflicting device and suggested free slots, an 8-way placement race with exactly one winner, PATCH moves with before/after audit diffs, 50 concurrent IP allocations returning 50 distinct addresses, `SUBNET_FULL`, IPv6.
@@ -60,6 +85,13 @@ pnpm typecheck
     - server → patch panel → switch trace, plus `PORT_IN_USE` and `PORT_CABLED`
     - A/B power load split, single-feed detection after pulling a cord, `powered_by` edges kept in sync on insert, re-plug and unplug
     - QR lookup
+  - Discovery:
+    - the vault (fresh IVs, tamper and row-swap detection, key rotation); no secret in any response or audit row
+    - target, credential-kind and schedule validation; one active run per job
+    - service account confined to internal routes; credential hand-out audited as `access`
+    - reconciliation: creates, idempotent retries, NIC-moved and host-key-change conflicts, accepting a new key
+    - enqueue only after commit, compensation when Redis is down; lease re-claim and the sweeper
+- **`apps/discovery-worker`, 19 tests:** against a real in-process SSH server and SNMP agent (v2c and v3 authPriv), plus target expansion, credential ordering, batching, stop and shutdown.
 - **`apps/web`, 8 tests:** rack layout maths (grid rows, ghosts, free gaps, utilisation, kW/BTU, drop placement).
 
 ## Key design decisions
@@ -97,6 +129,47 @@ pnpm typecheck
 | `POST /power-connections`, `DELETE /power-connections/:id` | maintains `powered_by` CMDB edges |
 | `GET /racks/:id/power` | per-PDU load, headroom, BTU/h, `unpowered`, `singleFed` |
 | `GET /assets/lookup?tag=` | exact asset tag (case-insensitive) or serial |
+
+## Discovery
+
+```
+web ─POST /discovery/jobs/:id/run─▶ API ──commit run row──▶ Postgres
+                                     └──enqueue {runId} (after commit)──▶ Redis/BullMQ ──▶ worker
+worker ─claim─▶ API: run → running, lease 120 s, decrypted credentials returned over this HTTPS call only
+worker ─probe hosts (bounded concurrency)─▶ SNMP / SSH
+worker ─POST hosts every 5 s (also the heartbeat)─▶ API reconciler ─▶ assets, ports, components, IPAM, audit
+worker ─finish─▶ API
+```
+
+- **Secrets:**
+  - They never touch Redis, logs or audit rows.
+  - The master key lives only in the API's environment.
+  - Ciphertext is bound to its row id and kind, so it can't be moved to another row.
+  - `VAULT_PREVIOUS_KEYS` keeps old rows readable during a key rotation.
+- **Worker transport:** the worker refuses a plain-HTTP API outside loopback.
+- **Exactly one run per job:**
+  - A partial unique index enforces it.
+  - A run whose worker dies is re-claimed once its lease lapses, or failed by the sweeper.
+  - Retried batches don't double-count.
+- **Nothing is merged silently.** These are recorded as `conflict`, and the asset is left untouched:
+  - hardware keys that point at different assets
+  - a serial that doesn't match the asset's stored serial
+  - a changed SSH host key, until someone accepts it with `DELETE /assets/:id/discovery/ssh-host-key`
+- **Discovery never overwrites hand-curated data.**
+  - It only fills in identifiers the asset lacks.
+  - It only replaces components it created itself.
+  - It never deletes ports.
+- **The SSH inventory is read-only.**
+  - It is one POSIX `sh` exec: no writes, no package managers.
+  - DMI identity fields fall back to passwordless `sudo -n` and are skipped when that isn't allowed.
+
+| Route | Who |
+|---|---|
+| `GET/POST /credentials`, `PUT /credentials/:id/secret`, `DELETE /credentials/:id` | admin |
+| `GET/POST /discovery/jobs`, `GET/PATCH/DELETE /discovery/jobs/:id`, `POST /discovery/jobs/:id/run` | read: all; write: admin, network_engineer |
+| `GET /discovery/jobs/:id/runs`, `GET /discovery/runs/:id`, `GET /discovery/runs/:id/results?outcome=` | all |
+| `DELETE /assets/:id/discovery/ssh-host-key` | admin, dc_technician |
+| `POST /internal/discovery/{jobs/:id/runs, runs/:id/claim, runs/:id/hosts, runs/:id/finish}` | `discovery_service` only |
 
 ## Schema workflow
 

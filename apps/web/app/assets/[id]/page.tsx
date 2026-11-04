@@ -167,6 +167,22 @@ export default async function AssetPage({ params }: { params: { id: string } }) 
           )}
         </Section>
 
+        <Section title="Discovery">
+          {!asset.lastDiscoveredAt ? <Empty>Not seen by discovery yet.</Empty> : (() => {
+            const d = (asset.customFields.discovery ?? {}) as Record<string, string | undefined>;
+            return (
+              <dl className="grid grid-cols-2 gap-4">
+                <Stat label="Last seen" value={asset.lastDiscoveredAt.slice(0, 16).replace('T', ' ')} hint={`${asset.lastDiscoveredAt} (UTC)`} />
+                <Stat label="Via" value={d.protocol?.toUpperCase() ?? '—'} />
+                <Stat label="OS" value={d.os ?? d.sysDescr ?? '—'} hint={d.sysDescr} />
+                <Stat label="Vendor / model" value={[d.vendor, d.model].filter(Boolean).join(' ') || '—'} />
+                {asset.systemUuid && <Stat label="System UUID" value={<span className="font-mono text-xs">{asset.systemUuid}</span>} />}
+                {d.sshHostKey && <Stat label="SSH host key" value={<span className="font-mono text-xs">{d.sshHostKey.slice(0, 19)}…</span>} hint={d.sshHostKey} />}
+              </dl>
+            );
+          })()}
+        </Section>
+
         <Section title="Maintenance">
           {!maintenance.ok ? <Unavailable what="maintenance" /> : maintenance.v.length === 0 ? <Empty>No schedules.</Empty> : (
             <ul className="divide-y divide-slate-800">

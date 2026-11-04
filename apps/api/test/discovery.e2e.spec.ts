@@ -8,14 +8,19 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/bootstrap';
 import { sqlStateOf } from '../src/common/db-errors';
 import { signToken } from '../src/modules/auth/auth.guard';
-import { DiscoveryQueue } from '../src/modules/discovery/discovery.queue';
+import { DiscoveryQueue, queueUnavailable } from '../src/modules/discovery/discovery.queue';
 import { RunsService } from '../src/modules/discovery/runs.service';
 import { makeUser } from './fixtures';
 
 class FakeQueue extends DiscoveryQueue {
   runs: Array<{ jobId: string; runId: string }> = [];
   schedules = new Map<string, string | null>();
+  down = false;
+  /** Set by the test: lets it assert the run row is already committed when the worker could see it. */
+  onEnqueue?: (runId: string) => Promise<void>;
   async enqueueRun(jobId: string, runId: string) {
+    if (this.down) throw queueUnavailable(new Error('connection refused'));
+    await this.onEnqueue?.(runId);
     this.runs.push({ jobId, runId });
   }
   async syncSchedule(jobId: string, cron: string | null) {
@@ -124,6 +129,30 @@ describe('Discovery (e2e)', () => {
       const again = await api().post(`/api/v1/discovery/jobs/${j.id}/run`).set(as('admin')).expect(409);
       expect(again.body).toMatchObject({ code: 'RUN_IN_PROGRESS', details: { runId: first.body.id } });
       expect((await api().delete(`/api/v1/discovery/jobs/${j.id}`).set(as('admin')).expect(409)).body.code).toBe('RUN_IN_PROGRESS');
+    });
+
+    it('enqueues only after the run is committed, and fails the run if Redis refuses', async () => {
+      const j = await job([(await sshCred()).id]);
+      let visible: unknown;
+      queue.onEnqueue = async (runId) => {
+        // A separate connection, like a worker's claim: the run must already be committed.
+        const other = new PrismaClient();
+        visible = await other.discovery_runs.findUnique({ where: { id: runId }, select: { status: true } });
+        await other.$disconnect();
+      };
+      await api().post(`/api/v1/discovery/jobs/${j.id}/run`).set(as('admin')).expect(202);
+      queue.onEnqueue = undefined;
+      expect(visible).toEqual({ status: 'queued' });
+
+      const j2 = await job([(await sshCred()).id]);
+      queue.down = true;
+      const res = await api().post(`/api/v1/discovery/jobs/${j2.id}/run`).set(as('admin')).expect(503);
+      queue.down = false;
+      expect(res.body.code).toBe('QUEUE_UNAVAILABLE');
+      const runs = (await api().get(`/api/v1/discovery/jobs/${j2.id}/runs`).set(as('auditor')).expect(200)).body;
+      expect(runs).toMatchObject([{ status: 'failed', error: expect.stringMatching(/queue unavailable/) }]);
+      // The job is not blocked by the failed attempt.
+      await api().post(`/api/v1/discovery/jobs/${j2.id}/run`).set(as('admin')).expect(202);
     });
 
     it('DB refuses a credential of the wrong kind (KB020)', async () => {

@@ -48,6 +48,9 @@ export interface Asset {
   face: 'front' | 'rear' | null;
   depth: 'full' | 'half' | 'zero_u';
   powerDrawW: number | null;
+  systemUuid: string | null;
+  lastDiscoveredAt: string | null;
+  customFields: Record<string, unknown>;
   updatedAt: string;
 }
 
@@ -138,3 +141,52 @@ export const getMaintenance = (id: string) => api<Maintenance[]>(`/assets/${enc(
 export const getExpiring = (withinDays: number) => api<Contract[]>(`/contracts/expiring?withinDays=${withinDays}`);
 export const getCoverageGaps = () => api<CoverageGap[]>('/contracts/coverage-gaps');
 export const getRackPower = (id: string) => api<RackPowerSummary>(`/racks/${enc(id)}/power`);
+
+/* ---------- Phase 3: discovery ---------- */
+
+export interface DiscoveryJob {
+  id: string;
+  name: string;
+  protocol: 'snmp' | 'ssh';
+  targets: string[];
+  maxHosts: number;
+  scheduleCron: string | null;
+  nextRuns: string[];
+  isEnabled: boolean;
+  credentials: Array<{ id: string; name: string; kind: string }>;
+  lastRunAt: string | null;
+  lastRunStatus: 'never_run' | 'queued' | 'running' | 'succeeded' | 'failed' | 'partial';
+}
+
+export interface DiscoveryRun {
+  id: string;
+  jobId: string;
+  trigger: 'manual' | 'schedule';
+  status: DiscoveryJob['lastRunStatus'];
+  queuedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  progress: { total: number; scanned: number; responded: number };
+  counts: { created: number; updated: number; unchanged: number; conflict: number; failed: number };
+  error: string | null;
+}
+
+export type DiscoveryOutcome = 'created' | 'updated' | 'unchanged' | 'conflict' | 'auth_failed' | 'error';
+export interface DiscoveryResult {
+  id: string;
+  ip: string;
+  outcome: DiscoveryOutcome;
+  asset: { id: string; name: string } | null;
+  matchedBy: string | null;
+  changes: Record<string, unknown>;
+  message: string | null;
+  hostname: string | null;
+  os: string | null;
+}
+
+export const getDiscoveryJobs = () => api<DiscoveryJob[]>('/discovery/jobs');
+export const getDiscoveryJob = (id: string) => api<DiscoveryJob>(`/discovery/jobs/${enc(id)}`);
+export const getJobRuns = (id: string, limit = 10) => api<DiscoveryRun[]>(`/discovery/jobs/${enc(id)}/runs?limit=${limit}`);
+export const getRun = (id: string) => api<DiscoveryRun>(`/discovery/runs/${enc(id)}`);
+export const getRunResults = (id: string, outcome?: DiscoveryOutcome) =>
+  api<DiscoveryResult[]>(`/discovery/runs/${enc(id)}/results${outcome ? `?outcome=${outcome}` : ''}`);

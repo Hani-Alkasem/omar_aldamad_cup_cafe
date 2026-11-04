@@ -212,7 +212,7 @@ export class JobsService implements OnApplicationBootstrap {
    * guard: two clicks, or a click racing the scheduler, yield one run and one 409.
    */
   async createRun(jobId: string, trigger: 'manual' | 'schedule', ctx: { userId: string; requestId?: string }, enqueue: boolean) {
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       // Row lock serialises run creation per job, so the active-run check below is exact.
       const [job] = await tx.$queryRaw<Array<{ is_enabled: boolean; name: string }>>`SELECT is_enabled, name FROM discovery_jobs WHERE id = ${jobId}::uuid FOR UPDATE`;
       if (!job) throw notFound('Discovery job', jobId);
@@ -229,9 +229,21 @@ export class JobsService implements OnApplicationBootstrap {
         throw err;
       }
       await this.audit.record(tx, { entity: 'discovery_run', entityId: run.id, action: 'create', after: { jobId, trigger }, userId: ctx.userId, requestId: ctx.requestId });
-      if (enqueue) await this.queue.enqueueRun(jobId, run.id);
-      return this.getRun(run.id, tx);
+      return run;
     }, TX_OPTIONS);
+    // Enqueue only after commit: a worker can pick the job up within milliseconds and must find the run.
+    // If Redis refuses, fail the run so it does not block the job, and surface the 503.
+    if (enqueue) {
+      try {
+        await this.queue.enqueueRun(jobId, created.id);
+      } catch (err) {
+        await this.prisma.$executeRaw`
+          UPDATE discovery_runs SET status = 'failed', finished_at = now(), error = 'job queue unavailable when the run was requested'
+          WHERE id = ${created.id}::uuid AND status = 'queued'`;
+        throw err;
+      }
+    }
+    return this.getRun(created.id);
   }
 
   /**

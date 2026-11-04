@@ -30,7 +30,7 @@ flowchart LR
   end
 
   subgraph Workers["Discovery & integration workers"]
-    DW[Discovery worker · Python<br/>SNMP v1/v2c/v3 · SSH · WinRM · nmap<br/>AWS · Azure · vSphere]
+    DW[apps/discovery-worker · TypeScript<br/>SNMP v2c/v3 · SSH (Phase 3)<br/>WinRM · cloud APIs (later)]
     REC[Reconciler<br/>dedupe by UUID → serial → MAC]
     WH[Webhook dispatcher<br/>Jira SM · ServiceNow · Slack]
   end
@@ -50,7 +50,7 @@ flowchart LR
 
 ## Scope by phase
 
-| Area | Phase 1 | Phase 2 | Later |
+| Area | Phase 1 | Phase 2 | Phase 3 and later |
 |---|---|---|---|
 | Gateway | NestJS REST, OpenAPI, JWT RBAC, error mapping | Same, 30+ new routes | GraphQL, WebSocket job stream |
 | Data | Core DDL, integrity in the database | Migration `0002`: lifecycle, cabling, power | Neo4j projection for very large graphs |
@@ -58,7 +58,7 @@ flowchart LR
 | IPAM | Subnet create/tree/utilisation, allocate/reserve/release | Port MAC lookup (groundwork for CAM mapping) | DNS, DHCP scopes, ARP/CAM ingestion |
 | DCIM | Interactive 42U elevation, front/rear, drag-to-move | Ports, cables, patch-panel pass-through, path trace, PDU outlets, rack power budget | Live power telemetry (SNMP), floor plans |
 | UI | Rack elevation | Mobile asset page, QR label sheet, contract expiry and coverage gaps, rack power panel | Dependency map |
-| Discovery | Tables only | | Workers, scheduler, vault, reconciliation |
+| Discovery | Tables only | | Phase 3: vault, jobs, BullMQ schedules, SNMP/SSH worker, reconciliation, review UI. Later: WinRM, vSphere/AWS/Azure, ARP/CAM ingestion |
 
 ### Phase 2 flows
 
@@ -76,6 +76,33 @@ flowchart LR
 - **Power budget**: a device's draw is split evenly across its connected inlets (A/B supplies share load) and summed per PDU. A device with two or more PSUs on fewer than two feeds is flagged `singleFed`. A consumer with draw or inlets but no cord is flagged `unpowered`.
 - **Depreciation**: straight-line, or double-declining switching to straight-line once that is larger, on month granularity from the in-service date. Never below salvage value.
 
+### Phase 3: discovery
+
+The worker is TypeScript rather than Python, as first drawn. That way it shares the Zod contracts in `packages/shared` with the API, and it is tested in the same toolchain. `net-snmp` and `ssh2` cover SNMP v2c/v3 and SSH without native builds.
+
+```mermaid
+sequenceDiagram
+  participant W as Web / scheduler
+  participant A as API
+  participant P as Postgres
+  participant Q as Redis (BullMQ)
+  participant K as Worker
+  participant H as Hosts
+  W->>A: POST /discovery/jobs/:id/run
+  A->>P: insert run (unique: one active per job), commit
+  A->>Q: enqueue {jobId, runId}
+  Q->>K: job
+  K->>A: claim (service token)
+  A->>P: queued → running, lease 120 s, audit credential access
+  A-->>K: targets + decrypted credentials (HTTPS only)
+  loop every 5 s / 50 hosts
+    K->>H: SNMP get/walk · SSH exec (read-only)
+    K->>A: POST hosts (idempotent upsert per IP)
+    A->>P: reconcile: UUID → serial → MAC → IP, conflicts held
+  end
+  K->>A: finish
+```
+
 ## Integrity rules enforced by PostgreSQL
 
 Every rule below holds even if a client bypasses the API:
@@ -87,6 +114,7 @@ Every rule below holds even if a client bypasses the API:
 - **Patch panels (KB011):** a pass-through pairs a `patch_front` with a `patch_rear` port on the same asset; pairing is mirrored automatically and each port pairs once.
 - **Power (KB010):** a cord runs outlet → inlet, between different assets, at the same voltage. Each outlet and inlet carries one cord (unique). Plugging in creates a `powered_by` CMDB edge; unplugging the last cord between two assets removes it.
 - **Cabling:** each port carries at most one cable (unique on both endpoints); the API also locks both ports `FOR UPDATE` to return a clear `PORT_IN_USE`.
+- **Discovery (KB020):** a job's credentials must fit its protocol, and the protocol can't change while credentials are attached. At most one queued or running run per job (partial unique index). Run counters can't go negative. SMBIOS `system_uuid` is unique. Credential rows must hold a 12-byte IV and a 16-byte tag. `audit_logs` accepts `access` rows (no before image).
 - **Lifecycle:** contract `end_date >= start_date`; contract numbers unique per vendor; vendor names unique case-insensitively; salvage ≤ cost and in-service ≥ purchase date (CHECK); maintenance `next_due_on` is a generated column.
 
 The API also pre-checks rack placement and CIDR validity so it can return friendly 409/422 bodies. The constraints are the race-proof backstop.
