@@ -55,7 +55,7 @@ export function toAssetDto(a: assets): AssetDto {
 
 type AssetWrite = Omit<Prisma.assetsUncheckedCreateInput, 'id'>;
 
-function toRow(input: Partial<CreateAssetInput>): Partial<AssetWrite> {
+export function toRow(input: Partial<CreateAssetInput>): Partial<AssetWrite> {
   const row: Partial<AssetWrite> = {};
   if (input.name !== undefined) row.name = input.name;
   if (input.assetTag !== undefined) row.asset_tag = input.assetTag;

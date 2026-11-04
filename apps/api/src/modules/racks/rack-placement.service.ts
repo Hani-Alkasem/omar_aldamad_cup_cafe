@@ -72,7 +72,7 @@ export class RackPlacementService {
 
     const suggestions = placeableStarts(heightU, req.sizeU, faces, RackPlacementService.byFace(rows)).slice(0, 5);
     const names = [...new Set(clashes.map((c) => c.name))].join(', ');
-    throw conflict('RACK_U_CONFLICT', `U${span.fromU}–U${span.toU} is already occupied by ${names}`, {
+    throw conflict('RACK_U_CONFLICT', `${span.fromU === span.toU ? `U${span.fromU}` : `U${span.fromU}–U${span.toU}`} is already occupied by ${names}`, {
       requested: { ...span, faces },
       conflicts: clashes,
       suggestedStartU: suggestions,

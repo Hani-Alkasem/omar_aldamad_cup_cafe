@@ -262,3 +262,25 @@ export async function getMeOrNull(): Promise<Me | null | 'expired'> {
   if (res?.status === 401 && oidcEnabled()) return 'expired';
   return res?.ok ? ((await res.json()) as Me) : null;
 }
+
+/* ---------- Phase 5B: search and reports ---------- */
+export interface SearchHit {
+  type: 'asset' | 'ip' | 'subnet' | 'application' | 'rack' | 'contract';
+  id: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  score: number;
+  matched: string;
+}
+export const search = (q: string) => api<{ query: string; kind: string; hits: SearchHit[] }>(`/search?q=${enc(q)}&limit=50`);
+
+export interface Summary {
+  assets: { total: number; byStatus: Array<{ status: string; count: number }>; byType: Array<{ type: string; count: number }> };
+  racks: { count: number; totalU: number; usedU: number; utilisationPct: number; hottest: Array<{ id: string; name: string; loadW: number; maxPowerW: number; pct: number | null }> };
+  coverage: { eligible: number; covered: number; pct: number; expiringIn30: number; expiringIn90: number; expiredLast30: number };
+  ipam: { busiest: Array<{ id: string; cidr: string; name: string | null; used: number; usable: number; pct: number }> };
+  discovery: { enabledJobs: number; failingJobs: number; openConflicts: number; seenLast7d: number; neverDiscovered: number };
+  integrations: { last24h: { succeeded: number; retrying: number; dead: number } };
+}
+export const getSummary = () => api<Summary>('/reports/summary');

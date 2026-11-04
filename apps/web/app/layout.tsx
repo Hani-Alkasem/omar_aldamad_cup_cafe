@@ -24,8 +24,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Link href="/applications" className="text-slate-400 hover:text-white">Applications</Link>
             <Link href="/discovery" className="text-slate-400 hover:text-white">Discovery</Link>
             <Link href="/integrations" className="text-slate-400 hover:text-white">Integrations</Link>
+            <form action="/search" role="search" className="ml-auto">
+              <label htmlFor="global-search" className="sr-only">Search</label>
+              <input id="global-search" name="q" type="search" placeholder="Name, tag, IP, MAC…" className="w-44 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none" />
+            </form>
             {me?.ssoEnabled && (
-              <form action="/auth/logout" method="post" className="ml-auto flex items-center gap-3 pl-4">
+              <form action="/auth/logout" method="post" className="flex items-center gap-3 pl-2">
                 <span className="text-xs text-slate-400" title={me.sites.length ? `Can change: ${me.sites.map((s) => s.name).join(', ')}` : 'Can change every site'}>
                   {me.name} · {me.role.replace('_', ' ')}{me.sites.length ? ` · ${me.sites.map((s) => s.name).join(', ')}` : ''}
                 </span>
