@@ -1,8 +1,11 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
-import { DiscoveryOptions, type FinishRunInput, type RunSpec, type SubmitHostsInput, SubmitHostsSchema } from '@itam/shared';
+import { DiscoveryOptions, isInventoryProtocol, type DiscoveryProtocol, type FinishRunInput, type RunSpec, type SubmitHostsInput, SubmitHostsSchema } from '@itam/shared';
 import { conflict, notFound, unprocessable } from '../../common/errors';
 import { PrismaService, TX_OPTIONS, type Tx } from '../../common/prisma.service';
 import { parseIp } from '../ipam/cidr';
+import ipaddr from 'ipaddr.js';
+
+const isIp = (s: string) => ipaddr.isValid(s);
 import { AuditService } from '../audit/audit.service';
 import { CredentialsService } from './credentials.service';
 import { runDto } from './jobs.service';
@@ -68,9 +71,10 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
         if (!exists) throw notFound('Discovery run', runId);
         throw conflict('RUN_NOT_CLAIMABLE', `Run is ${exists.status}`, { status: exists.status });
       }
-      const [job] = await tx.$queryRaw<Array<{ protocol: 'snmp' | 'ssh'; targets: string[]; max_hosts: number; options: unknown }>>`
-        SELECT protocol, targets::text[] AS targets, max_hosts, options FROM discovery_jobs WHERE id = ${run.job_id}::uuid`;
-      const { hosts } = normaliseTargets(job.targets, job.max_hosts);
+      const [job] = await tx.$queryRaw<Array<{ protocol: DiscoveryProtocol; targets: string[]; endpoints: string[]; max_hosts: number; options: unknown }>>`
+        SELECT protocol, targets::text[] AS targets, endpoints, max_hosts, options FROM discovery_jobs WHERE id = ${run.job_id}::uuid`;
+      // Inventory jobs do not know their size up front; progress counts what each endpoint returns.
+      const hosts = isInventoryProtocol(job.protocol) ? 0 : normaliseTargets(job.targets, job.max_hosts).hosts;
       await tx.discovery_runs.update({ where: { id: runId }, data: { hosts_total: hosts } });
 
       const { opened, unreadable } = await this.credentials.openForJob(tx, run.job_id, { ...ctx, runId });
@@ -85,6 +89,7 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
         jobId: run.job_id,
         protocol: job.protocol,
         targets: job.targets,
+        endpoints: job.endpoints,
         maxHosts: job.max_hosts,
         options: DiscoveryOptions.parse(job.options ?? {}),
         leaseSeconds: LEASE_SECONDS,
@@ -121,18 +126,18 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
       WHERE r.id = ${runId}::uuid`;
   }
 
-  private upsertResult(tx: Tx, runId: string, r: { ip: string; outcome: string; assetId: string | null; matchedBy: string | null; facts: object; changes: object; message: string | null }) {
+  private upsertResult(tx: Tx, runId: string, r: { key: string; ip: string | null; outcome: string; assetId: string | null; matchedBy: string | null; facts: object; changes: object; message: string | null }) {
     // On retry keep the first meaningful outcome: a re-sent host reconciles as "unchanged".
     return tx.$executeRaw`
-      INSERT INTO discovery_results (run_id, ip, outcome, asset_id, matched_by, facts, changes, message)
-      VALUES (${runId}::uuid, ${r.ip}::inet, ${r.outcome}::discovery_outcome, ${r.assetId}::uuid, ${r.matchedBy},
+      INSERT INTO discovery_results (run_id, result_key, ip, outcome, asset_id, matched_by, facts, changes, message)
+      VALUES (${runId}::uuid, ${r.key}, ${r.ip}::inet, ${r.outcome}::discovery_outcome, ${r.assetId}::uuid, ${r.matchedBy},
               ${JSON.stringify(r.facts)}::jsonb, ${JSON.stringify(r.changes)}::jsonb, ${r.message})
-      ON CONFLICT (run_id, ip) DO UPDATE SET
+      ON CONFLICT (run_id, result_key) DO UPDATE SET
         outcome = CASE WHEN discovery_results.outcome IN ('created', 'updated') AND EXCLUDED.outcome = 'unchanged'
                        THEN discovery_results.outcome ELSE EXCLUDED.outcome END,
         changes = CASE WHEN discovery_results.outcome IN ('created', 'updated') AND EXCLUDED.outcome = 'unchanged'
                        THEN discovery_results.changes ELSE EXCLUDED.changes END,
-        asset_id = EXCLUDED.asset_id, matched_by = EXCLUDED.matched_by, facts = EXCLUDED.facts, message = EXCLUDED.message`;
+        ip = EXCLUDED.ip, asset_id = EXCLUDED.asset_id, matched_by = EXCLUDED.matched_by, facts = EXCLUDED.facts, message = EXCLUDED.message`;
   }
 
   async submit(runId: string, raw: SubmitHostsInput, ctx: WorkerCtx) {
@@ -148,32 +153,34 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
 
     const summary = { created: 0, updated: 0, unchanged: 0, conflict: 0, failed: 0 };
     for (const failure of input.failures) {
-      const ip = parseIp(failure.ip).ip;
-      await this.upsertResult(this.prisma, runId, { ip, outcome: failure.outcome, assetId: null, matchedBy: null, facts: {}, changes: {}, message: failure.message });
+      // A sweep reports the address; an inventory job reports the endpoint (a URL, region or subscription).
+      const ip = isIp(failure.ip) ? parseIp(failure.ip).ip : null;
+      await this.upsertResult(this.prisma, runId, { key: ip ?? failure.ip, ip, outcome: failure.outcome, assetId: null, matchedBy: null, facts: {}, changes: {}, message: failure.message });
       summary.failed++;
     }
     for (const host of input.hosts) {
-      const facts = { ...host, ip: parseIp(host.ip).ip };
+      const facts = { ...host, ip: host.ip ? parseIp(host.ip).ip : undefined };
+      const key = facts.externalId ?? facts.ip!;
       let res;
       try {
         res = await this.reconciler.reconcile(facts, { ...ctx, runId, vrfId });
       } catch (err) {
         // One malformed host must not sink the batch; record it and move on.
-        this.log.warn(`reconcile ${facts.ip} failed: ${(err as Error).message}`);
+        this.log.warn(`reconcile ${key} failed: ${(err as Error).message}`);
         res = { outcome: 'error' as const, assetId: null, matchedBy: null, changes: {}, message: `reconcile failed: ${(err as Error).message.slice(0, 300)}` };
       }
       // Session lists can be thousands long: keep only the grouped outbound endpoints for the dependency pass.
       const { connections, ...kept } = facts;
       const outbound = outboundDependencies(facts);
-      await this.upsertResult(this.prisma, runId, { ip: facts.ip, ...res, facts: { ...kept, connectionCount: connections.length, ...(outbound.length ? { outbound } : {}) } });
+      await this.upsertResult(this.prisma, runId, { key, ip: facts.ip ?? null, ...res, facts: { ...kept, connectionCount: connections.length, ...(outbound.length ? { outbound } : {}) } });
       if (res.outcome === 'conflict') {
         await this.audit.emit(this.prisma, {
           type: 'discovery.conflict',
           entity: 'discovery_run',
           entityId: runId,
-          dedupeKey: `discovery.conflict:${runId}:${facts.ip}`,
+          dedupeKey: `discovery.conflict:${runId}:${key}`,
           requestId: ctx.requestId,
-          payload: { runId, ip: facts.ip, hostname: facts.hostname ?? null, assetId: res.assetId, reason: res.message, candidates: (res.changes as { candidates?: unknown }).candidates ?? [] },
+          payload: { runId, ip: facts.ip ?? null, externalId: facts.externalId ?? null, hostname: facts.hostname ?? null, assetId: res.assetId, reason: res.message, candidates: (res.changes as { candidates?: unknown }).candidates ?? [] },
         });
       }
       summary[res.outcome === 'error' ? 'failed' : res.outcome]++;
@@ -191,16 +198,18 @@ export class RunsService implements OnModuleInit, OnModuleDestroy {
 
   /** After all hosts are known: derive dependency edges from every reconciled host in the run. */
   private async dependencyPass(runId: string, ctx: WorkerCtx) {
-    const rows = await this.prisma.$queryRaw<Array<{ asset_id: string; outbound: Outbound[]; vrf_id: string | null }>>`
-      SELECT r.asset_id, r.facts->'outbound' AS outbound, j.vrf_id
+    const rows = await this.prisma.$queryRaw<Array<{ asset_id: string; outbound: Outbound[] | null; runs_on: string | null; vrf_id: string | null }>>`
+      SELECT r.asset_id, r.facts->'outbound' AS outbound, r.facts->>'runsOn' AS runs_on, j.vrf_id
       FROM discovery_results r JOIN discovery_runs d ON d.id = r.run_id JOIN discovery_jobs j ON j.id = d.job_id
-      WHERE r.run_id = ${runId}::uuid AND r.asset_id IS NOT NULL AND r.outcome IN ('created', 'updated', 'unchanged') AND r.facts ? 'outbound'`;
+      WHERE r.run_id = ${runId}::uuid AND r.asset_id IS NOT NULL AND r.outcome IN ('created', 'updated', 'unchanged')
+        AND (r.facts ? 'outbound' OR r.facts ? 'runsOn')`;
     let added = 0;
     for (const r of rows) {
       try {
-        added += (await this.reconciler.syncDependencies(r.asset_id, r.outbound, { ...ctx, runId, vrfId: r.vrf_id })).added;
+        if (r.outbound) added += (await this.reconciler.syncDependencies(r.asset_id, r.outbound, { ...ctx, runId, vrfId: r.vrf_id })).added;
+        if (r.runs_on && (await this.reconciler.syncRunsOn(r.asset_id, r.runs_on, { ...ctx, runId }))) added++;
       } catch (e) {
-        this.log.warn(`dependency pass for ${r.asset_id} failed: ${(e as Error).message}`);
+        this.log.warn(`relationship pass for ${r.asset_id} failed: ${(e as Error).message}`);
       }
     }
     return added;

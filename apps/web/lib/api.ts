@@ -151,8 +151,9 @@ export const getRackPower = (id: string) => api<RackPowerSummary>(`/racks/${enc(
 export interface DiscoveryJob {
   id: string;
   name: string;
-  protocol: 'snmp' | 'ssh';
+  protocol: 'snmp' | 'ssh' | 'vsphere' | 'aws' | 'azure';
   targets: string[];
+  endpoints: string[];
   maxHosts: number;
   scheduleCron: string | null;
   nextRuns: string[];
@@ -178,7 +179,8 @@ export interface DiscoveryRun {
 export type DiscoveryOutcome = 'created' | 'updated' | 'unchanged' | 'conflict' | 'auth_failed' | 'error';
 export interface DiscoveryResult {
   id: string;
-  ip: string;
+  ip: string | null;
+  key: string;
   outcome: DiscoveryOutcome;
   asset: { id: string; name: string } | null;
   matchedBy: string | null;

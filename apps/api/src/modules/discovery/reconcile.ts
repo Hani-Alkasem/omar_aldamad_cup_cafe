@@ -12,7 +12,7 @@ import type { AssetType, ParsedHostFacts } from '@itam/shared';
  * - A changed SSH host key is a conflict: it may be a reinstall, or a machine impersonating one.
  */
 
-export type MatchKey = 'system_uuid' | 'serial' | 'mac' | 'ip';
+export type MatchKey = 'external_id' | 'system_uuid' | 'serial' | 'mac' | 'ip';
 
 export interface KnownAsset {
   id: string;
@@ -23,6 +23,7 @@ export interface KnownAsset {
 }
 
 export interface Lookups {
+  byExternalId?: KnownAsset[];
   bySystemUuid: KnownAsset[];
   bySerial: KnownAsset[];
   byMac: KnownAsset[];
@@ -38,6 +39,7 @@ const differs = (a: string | null | undefined, b: string | null | undefined) => 
 
 export function resolveIdentity(facts: ParsedHostFacts, l: Lookups): Match {
   const hardware: Array<[MatchKey, KnownAsset[]]> = [
+    ['external_id', l.byExternalId ?? []],
     ['system_uuid', l.bySystemUuid],
     ['serial', l.bySerial],
     ['mac', l.byMac],
@@ -64,7 +66,7 @@ export function resolveIdentity(facts: ParsedHostFacts, l: Lookups): Match {
 
   const { asset } = match;
   const one = (reason: string): Match => ({ kind: 'conflict', reason, candidates: [{ id: asset.id, name: asset.name, via: match.matchedBy }] });
-  if (differs(asset.systemUuid, facts.systemUuid)) return one(`system UUID ${facts.systemUuid} does not match ${asset.name}'s ${asset.systemUuid}`);
+  if (differs(asset.systemUuid, facts.systemUuid) && differs(asset.systemUuid, facts.systemUuid && swapUuidEndianness(facts.systemUuid))) return one(`system UUID ${facts.systemUuid} does not match ${asset.name}'s ${asset.systemUuid}`);
   if (differs(asset.serialNumber, facts.serialNumber)) return one(`serial ${facts.serialNumber} does not match ${asset.name}'s ${asset.serialNumber}`);
   if (asset.sshHostKey && facts.sshHostKey && asset.sshHostKey !== facts.sshHostKey) {
     return one(`SSH host key changed (was ${asset.sshHostKey}, now ${facts.sshHostKey}); confirm the reinstall before accepting`);
@@ -84,18 +86,31 @@ const SNMP_TYPES: Array<[RegExp, AssetType]> = [
 ];
 
 /** Best guess for new assets only; a matched asset's type is never overwritten. */
-export function inferType(facts: Pick<ParsedHostFacts, 'protocol' | 'sysDescr' | 'isVirtual' | 'model' | 'vendor'>): AssetType {
-  if (facts.isVirtual) return 'virtual_machine';
+export function inferType(facts: Pick<ParsedHostFacts, 'protocol' | 'sysDescr' | 'isVirtual' | 'model' | 'vendor' | 'cloud'>): AssetType {
+  if (facts.isVirtual || facts.cloud?.kind === 'vm') return 'virtual_machine';
+  if (facts.cloud?.kind === 'host') return 'physical_server';
   if (facts.protocol === 'ssh') return 'physical_server';
   const text = [facts.sysDescr, facts.vendor, facts.model].filter(Boolean).join(' ');
   return SNMP_TYPES.find(([re]) => re.test(text))?.[1] ?? 'other';
 }
 
-export const assetNameFor = (facts: Pick<ParsedHostFacts, 'hostname' | 'ip'>) => {
+export const assetNameFor = (facts: Pick<ParsedHostFacts, 'hostname' | 'ip' | 'externalId'>) => {
   const h = facts.hostname?.trim();
   // FQDNs make long rack labels; keep the host part, the FQDN stays in the discovery facts.
-  return h ? (/^\d+\.\d+\.\d+\.\d+$/.test(h) ? h : h.split('.')[0]) : facts.ip;
+  return h ? (/^\d+\.\d+\.\d+\.\d+$/.test(h) ? h : h.split('.')[0]) : (facts.ip ?? facts.externalId ?? 'unnamed');
 };
+
+/**
+ * SMBIOS UUIDs: the first three fields are little-endian on the wire, and VMware (older hardware
+ * versions) and Hyper-V/Azure expose them byte-swapped relative to what the guest's DMI reports.
+ * Matching tries both orders so a VM found by vCenter and by SSH converges on one asset.
+ */
+export function swapUuidEndianness(u: string): string {
+  const h = u.replace(/-/g, '');
+  const sw = (s: string) => s.match(/../g)!.reverse().join('');
+  const x = sw(h.slice(0, 8)) + sw(h.slice(8, 12)) + sw(h.slice(12, 16)) + h.slice(16);
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+}
 
 /**
  * MACs that do not identify one machine: zero/broadcast, multicast, and the virtual-router
@@ -129,7 +144,7 @@ export function outboundDependencies(facts: Pick<ParsedHostFacts, 'ip' | 'listen
   const byIp = new Map<string, { ports: Set<number>; processes: Map<string, number> }>();
   for (const c of facts.connections) {
     // Loopback peers are the host talking to itself, unless the host was itself reached on loopback (the lab simulator).
-    const loopback = LOOPBACK.test(c.remoteIp) && !LOOPBACK.test(facts.ip);
+    const loopback = LOOPBACK.test(c.remoteIp) && !LOOPBACK.test(facts.ip ?? '');
     if (own.has(c.localPort) || NON_ROUTABLE.test(c.remoteIp) || loopback || c.remoteIp === facts.ip) continue;
     const e = byIp.get(c.remoteIp) ?? { ports: new Set(), processes: new Map() };
     e.ports.add(c.remotePort);

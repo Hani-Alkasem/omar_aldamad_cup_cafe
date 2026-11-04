@@ -1,4 +1,5 @@
-import type { DiscoveryProtocol, HostFacts, HostFailure, RunSpec } from '@itam/shared';
+import { isInventoryProtocol, type DiscoveryProtocol, type HostFacts, type HostFailure, type RunSpec } from '@itam/shared';
+import type { InventoryCollector } from './collectors/inventory';
 import { ApiError, type DiscoveryApi } from './api-client';
 import type { Collector } from './collectors/types';
 import { forEachLimit } from './pool';
@@ -6,7 +7,8 @@ import { expandTargets } from './targets';
 
 export interface RunDeps {
   api: DiscoveryApi;
-  collectors: Record<DiscoveryProtocol, Collector>;
+  collectors: Partial<Record<DiscoveryProtocol, Collector>>;
+  inventory?: Partial<Record<'vsphere' | 'aws' | 'azure', InventoryCollector>>;
   log: (msg: string, extra?: Record<string, unknown>) => void;
   signal?: AbortSignal;
   batchSize?: number;
@@ -30,7 +32,9 @@ class RunStopped extends Error {}
  * an unreachable SSH host is abandoned immediately (no point trying more passwords on a closed port).
  */
 export async function executeRun(spec: RunSpec, deps: RunDeps): Promise<RunReport> {
+  if (isInventoryProtocol(spec.protocol)) return executeInventoryRun(spec, deps);
   const collector = deps.collectors[spec.protocol];
+  if (!collector) throw new Error(`no collector for ${spec.protocol}`);
   const batchSize = deps.batchSize ?? 50;
   let hosts: HostFacts[] = [];
   let failures: HostFailure[] = [];
@@ -121,4 +125,66 @@ export async function executeRun(spec: RunSpec, deps: RunDeps): Promise<RunRepor
       : { status: 'succeeded', scanned, responded, failed };
   await deps.api.finish(spec.runId, { status: report.status, ...(report.error ? { error: report.error.slice(0, 2000) } : {}) });
   return report;
+}
+
+/**
+ * Inventory jobs: per endpoint, the first credential that works returns every host and VM; results
+ * go to the API in batches. An endpoint where every credential fails is reported as one failure.
+ */
+async function executeInventoryRun(spec: RunSpec, deps: RunDeps): Promise<RunReport> {
+  const collector = deps.inventory?.[spec.protocol as 'vsphere' | 'aws' | 'azure'];
+  if (!collector) throw new Error(`no inventory collector for ${spec.protocol}`);
+  const batchSize = deps.batchSize ?? 50;
+  let scanned = 0;
+  let failed = 0;
+  let stopped: string | undefined;
+  let deliveryError: string | undefined;
+  const send = async (hosts: HostFacts[], failures: HostFailure[]) => {
+    try {
+      await deps.api.submit(spec.runId, { scannedDelta: hosts.length, hosts, failures });
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'RUN_NOT_RUNNING') stopped = e.message;
+      else deliveryError ??= (e as Error).message;
+      throw e;
+    }
+  };
+  const heartbeat = setInterval(() => void deps.api.submit(spec.runId, { scannedDelta: 0 }).catch(() => undefined), deps.flushIntervalMs ?? Math.min(5000, (spec.leaseSeconds * 1000) / 4));
+  try {
+    for (const endpoint of spec.endpoints) {
+      if (deps.signal?.aborted) break;
+      let last: { kind: string; message: string } | undefined;
+      let hosts: HostFacts[] | undefined;
+      for (const cred of spec.credentials) {
+        const r = await collector.inventory(endpoint, cred, spec.options);
+        if (r.kind === 'facts') {
+          hosts = r.hosts;
+          for (const w of r.warnings) deps.log('inventory warning', { runId: spec.runId, endpoint, warning: w });
+          break;
+        }
+        last = r;
+      }
+      if (!hosts) {
+        failed++;
+        await send([], [{ ip: endpoint, outcome: last?.kind === 'auth_failed' ? 'auth_failed' : 'error', message: last?.kind === 'auth_failed' ? `all ${spec.credentials.length} credential(s) rejected` : (last?.message ?? 'no result') }]).catch(() => undefined);
+        if (stopped) break;
+        continue;
+      }
+      // Hosts before VMs within a batch is not required: runs_on edges are built at finish.
+      const capped = hosts.slice(0, spec.maxHosts - scanned);
+      for (let i = 0; i < capped.length; i += batchSize) {
+        await send(capped.slice(i, i + batchSize), []).catch(() => undefined);
+        if (stopped || deliveryError) break;
+      }
+      scanned += capped.length;
+      deps.log('endpoint inventoried', { runId: spec.runId, endpoint, hosts: capped.length, truncated: hosts.length > capped.length });
+      if (stopped || deliveryError || scanned >= spec.maxHosts) break;
+    }
+  } finally {
+    clearInterval(heartbeat);
+  }
+  if (stopped) return { status: 'failed', scanned, responded: scanned, failed, error: stopped };
+  const status: RunReport['status'] = deliveryError || deps.signal?.aborted ? 'partial' : failed && failed === spec.endpoints.length ? 'failed' : failed ? 'partial' : 'succeeded';
+  const error = deliveryError ? `results could not be delivered: ${deliveryError}` : deps.signal?.aborted ? 'worker shut down before the inventory completed' : failed ? `${failed} of ${spec.endpoints.length} endpoint(s) failed` : undefined;
+  await deps.api.finish(spec.runId, { status, ...(error ? { error } : {}) });
+  return { status, scanned, responded: scanned, failed, ...(error ? { error } : {}) };
 }

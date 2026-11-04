@@ -5,7 +5,7 @@ import { toDomainError } from '../../common/db-errors';
 import { PrismaService, TX_OPTIONS, type Tx } from '../../common/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { toAssetDto } from '../assets/assets.service';
-import { assetNameFor, inferType, isIdentityMac, resolveIdentity, servicePorts, type KnownAsset, type Match, type Outbound } from './reconcile';
+import { assetNameFor, inferType, isIdentityMac, resolveIdentity, servicePorts, swapUuidEndianness, type KnownAsset, type Match, type Outbound } from './reconcile';
 
 export interface ReconcileOutcome {
   outcome: 'created' | 'updated' | 'unchanged' | 'conflict';
@@ -45,6 +45,8 @@ function discoveryBlock(f: ParsedHostFacts) {
     sysDescr: f.sysDescr,
     sysObjectId: f.sysObjectId,
     sshHostKey: f.sshHostKey,
+    cloud: f.cloud,
+    tags: f.tags && Object.keys(f.tags).length ? f.tags : undefined,
     // Listening ports let other hosts' sessions be told apart from ephemeral noise.
     listeners: f.listeners.length ? f.listeners.map((l) => l.port) : undefined,
   };
@@ -73,17 +75,21 @@ export class ReconcilerService {
 
   private async lookups(tx: Tx, f: ParsedHostFacts, vrfId: string | null) {
     const macs = [...new Set(f.interfaces.map((i) => i.mac).filter((m): m is string => Boolean(m && isIdentityMac(m))))];
-    const [bySystemUuid, bySerial, byMac, byIp] = await Promise.all([
-      f.systemUuid ? tx.$queryRaw<KnownRow[]>`SELECT ${KNOWN_SELECT} FROM assets a WHERE a.system_uuid = ${f.systemUuid}::uuid` : [],
+    const uuids = f.systemUuid ? [f.systemUuid, swapUuidEndianness(f.systemUuid)] : [];
+    const [byExternalId, bySystemUuid, bySerial, byMac, byIp] = await Promise.all([
+      f.externalId ? tx.$queryRaw<KnownRow[]>`SELECT ${KNOWN_SELECT} FROM asset_external_ids x JOIN assets a ON a.id = x.asset_id WHERE x.external_id = ${f.externalId}` : [],
+      uuids.length ? tx.$queryRaw<KnownRow[]>`SELECT ${KNOWN_SELECT} FROM assets a WHERE a.system_uuid = ANY(${uuids}::uuid[])` : [],
       f.serialNumber ? tx.$queryRaw<KnownRow[]>`SELECT ${KNOWN_SELECT} FROM assets a WHERE a.serial_number = ${f.serialNumber}` : [],
       macs.length
         ? tx.$queryRaw<KnownRow[]>`SELECT DISTINCT ${KNOWN_SELECT} FROM assets a JOIN network_ports p ON p.asset_id = a.id WHERE p.mac_address = ANY(${macs}::macaddr[])`
         : [],
-      tx.$queryRaw<KnownRow[]>`
-        SELECT ${KNOWN_SELECT} FROM ip_addresses i JOIN assets a ON a.id = i.asset_id
-        WHERE i.ip = ${f.ip}::inet AND i.vrf_id IS NOT DISTINCT FROM ${vrfId}::uuid`,
+      f.ip
+        ? tx.$queryRaw<KnownRow[]>`
+            SELECT ${KNOWN_SELECT} FROM ip_addresses i JOIN assets a ON a.id = i.asset_id
+            WHERE i.ip = ${f.ip}::inet AND i.vrf_id IS NOT DISTINCT FROM ${vrfId}::uuid`
+        : [],
     ]);
-    return { bySystemUuid: bySystemUuid.map(known), bySerial: bySerial.map(known), byMac: byMac.map(known), byIp: byIp.map(known) };
+    return { byExternalId: byExternalId.map(known), bySystemUuid: bySystemUuid.map(known), bySerial: bySerial.map(known), byMac: byMac.map(known), byIp: byIp.map(known) };
   }
 
   private async apply(tx: Tx, f: ParsedHostFacts, ctx: Ctx): Promise<ReconcileOutcome> {
@@ -131,9 +137,10 @@ export class ReconcilerService {
     }
 
     const hw = { before: {} as Record<string, unknown>, after: {} as Record<string, unknown> };
+    if (f.externalId) await this.linkExternalId(tx, assetId, f.externalId, changes);
     await this.syncPorts(tx, assetId, f, changes, hw);
     await this.syncComponents(tx, assetId, f, changes, hw);
-    const ipNote = await this.syncIp(tx, assetId, f, ctx.vrfId, changes);
+    const ipNote = f.ip ? await this.syncIp(tx, assetId, f as ParsedHostFacts & { ip: string }, ctx.vrfId, changes) : null;
     // Hardware changes are audited on the asset too, so its history explains why RAM "changed".
     if (Object.keys(hw.after).length) {
       await this.audit.record(tx, { entity: 'asset', entityId: assetId, action: 'update', before: hw.before, after: hw.after, ...audit });
@@ -253,7 +260,45 @@ export class ReconcilerService {
     }, TX_OPTIONS);
   }
 
-  private async syncIp(tx: Tx, assetId: string, f: ParsedHostFacts, vrfId: string | null, changes: Record<string, unknown>): Promise<string | null> {
+  /** A provider id belongs to one asset; re-sightings only refresh last_seen. */
+  private async linkExternalId(tx: Tx, assetId: string, externalId: string, changes: Record<string, unknown>) {
+    const [r] = await tx.$queryRaw<Array<{ inserted: boolean }>>`
+      INSERT INTO asset_external_ids (external_id, asset_id, source) VALUES (${externalId}, ${assetId}::uuid, split_part(${externalId}, ':', 1))
+      ON CONFLICT (external_id) DO UPDATE SET last_seen_at = now() WHERE asset_external_ids.asset_id = EXCLUDED.asset_id
+      RETURNING (xmax = 0) AS inserted`;
+    if (r?.inserted) changes.externalId = externalId;
+  }
+
+  /**
+   * VM → hypervisor host from inventory data. Same rules as dependencies: once per run, never
+   * deleted automatically, hand-made edges untouched. The host must already be an asset (same run
+   * or earlier).
+   */
+  async syncRunsOn(assetId: string, hostExternalId: string, ctx: { userId: string; runId: string; requestId?: string }) {
+    return this.prisma.$transaction(async (tx) => {
+      const [host] = await tx.$queryRaw<Array<{ asset_id: string }>>`SELECT asset_id FROM asset_external_ids WHERE external_id = ${hostExternalId}`;
+      if (!host || host.asset_id === assetId) return false;
+      // A VM runs on one host at a time: a vMotion moves the edge.
+      const current = await tx.ci_relationships.findMany({ where: { source_asset_id: assetId, relationship_type: 'runs_on', source: 'discovery' } });
+      const same = current.find((e) => e.target_asset_id === host.asset_id);
+      for (const e of current.filter((x) => x.target_asset_id !== host.asset_id)) {
+        await tx.ci_relationships.delete({ where: { id: e.id } });
+        await this.audit.record(tx, { entity: 'ci_relationship', entityId: e.id, action: 'delete', before: { source: assetId, target: e.target_asset_id, type: 'runs_on', reason: 'moved to another host' }, userId: ctx.userId, requestId: ctx.requestId });
+      }
+      if (same) {
+        const attrs = same.attributes as { lastRunId?: string };
+        await tx.ci_relationships.update({ where: { id: same.id }, data: { last_seen_at: new Date(), ...(attrs.lastRunId === ctx.runId ? {} : { observation_count: { increment: 1 } }), attributes: { lastRunId: ctx.runId } } });
+        return false;
+      }
+      const manual = await tx.ci_relationships.findFirst({ where: { source_asset_id: assetId, target_asset_id: host.asset_id, relationship_type: 'runs_on' } });
+      if (manual) return false;
+      const edge = await tx.ci_relationships.create({ data: { source_asset_id: assetId, target_asset_id: host.asset_id, relationship_type: 'runs_on', source: 'discovery', attributes: { lastRunId: ctx.runId } } });
+      await this.audit.record(tx, { entity: 'ci_relationship', entityId: edge.id, action: 'create', after: { source: assetId, target: host.asset_id, type: 'runs_on' }, userId: ctx.userId, requestId: ctx.requestId });
+      return true;
+    }, TX_OPTIONS);
+  }
+
+  private async syncIp(tx: Tx, assetId: string, f: ParsedHostFacts & { ip: string }, vrfId: string | null, changes: Record<string, unknown>): Promise<string | null> {
     const [subnet] = await tx.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM subnets WHERE cidr >>= ${f.ip}::inet AND vrf_id IS NOT DISTINCT FROM ${vrfId}::uuid ORDER BY masklen(cidr) DESC LIMIT 1`;
     if (!subnet) return `No subnet in IPAM contains ${f.ip}; address not recorded`;

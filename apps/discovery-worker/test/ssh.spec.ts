@@ -43,7 +43,7 @@ beforeAll(async () => {
 
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
-const opts = () => ({ timeoutMs: 2000, concurrency: 1, port });
+const opts = () => ({ timeoutMs: 2000, tlsInsecure: false, concurrency: 1, port });
 const pw = (password: string): Credential => ({ id: 'c1', name: 'pw', kind: 'ssh_password', username: 'discovery', secret: { password } });
 
 describe('SshCollector', () => {

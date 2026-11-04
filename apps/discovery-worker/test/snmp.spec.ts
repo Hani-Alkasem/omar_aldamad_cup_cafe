@@ -55,7 +55,7 @@ beforeAll(async () => {
 
 afterAll(() => new Promise<void>((r) => agent.close(() => r())));
 
-const opts = () => ({ timeoutMs: 800, concurrency: 1, port });
+const opts = () => ({ timeoutMs: 800, tlsInsecure: false, concurrency: 1, port });
 const v2c = (community: string): Credential => ({ id: 'c1', name: 'v2c', kind: 'snmp_v2c', username: null, secret: { community } });
 
 describe('SnmpCollector', () => {

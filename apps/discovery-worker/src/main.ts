@@ -4,6 +4,9 @@ import { ApiError, HttpDiscoveryApi } from './api-client';
 import { ClientCredentials, StaticToken } from './auth';
 import { SnmpCollector } from './collectors/snmp';
 import { SshCollector } from './collectors/ssh';
+import { AwsCollector } from './collectors/aws';
+import { AzureCollector } from './collectors/azure';
+import { VsphereCollector } from './collectors/vsphere';
 import { loadConfig } from './config';
 import { executeRun } from './run';
 
@@ -13,6 +16,7 @@ const config = loadConfig();
 const auth = config.client ? new ClientCredentials(config.apiUrl, config.client.id, config.client.secret) : new StaticToken(config.token!);
 const api = new HttpDiscoveryApi(config.apiUrl, auth);
 const collectors = { snmp: new SnmpCollector(), ssh: new SshCollector() };
+const inventory = { vsphere: new VsphereCollector(), aws: new AwsCollector(), azure: new AzureCollector() };
 const shutdown = new AbortController();
 
 /** Answers that mean "nothing to do", not "retry". */
@@ -24,8 +28,8 @@ async function handle(job: Job<DiscoveryQueueJob & { reclaimWaits?: number }>, t
   try {
     if (!runId) runId = (await api.openScheduledRun(job.data.jobId)).id;
     const spec = await api.claim(runId);
-    log('run claimed', { runId, jobId: spec.jobId, protocol: spec.protocol, targets: spec.targets });
-    const report = await executeRun(spec, { api, collectors, log, signal: shutdown.signal });
+    log('run claimed', { runId, jobId: spec.jobId, protocol: spec.protocol, targets: spec.targets, endpoints: spec.endpoints });
+    const report = await executeRun(spec, { api, collectors, inventory, log, signal: shutdown.signal });
     log('run finished', { runId, ...report });
     return report;
   } catch (e) {

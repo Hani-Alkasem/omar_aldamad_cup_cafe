@@ -50,6 +50,18 @@ model asset_components {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model asset_external_ids {
+  external_id   String   @id
+  asset_id      String   @db.Uuid
+  source        String
+  first_seen_at DateTime @default(now()) @db.Timestamptz(6)
+  last_seen_at  DateTime @default(now()) @db.Timestamptz(6)
+  assets        assets   @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([asset_id], map: "asset_external_ids_asset_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model asset_financials {
   asset_id            String              @id @db.Uuid
   purchase_order_id   String?             @db.Uuid
@@ -104,6 +116,7 @@ model assets {
   last_discovered_at                                        DateTime?               @db.Timestamptz(6)
   application_members                                       application_members[]
   asset_components                                          asset_components[]
+  asset_external_ids                                        asset_external_ids[]
   asset_financials                                          asset_financials?
   asset_rack_occupancy                                      asset_rack_occupancy[]
   hardware_models                                           hardware_models?        @relation(fields: [model_id], references: [id], onUpdate: NoAction)
@@ -201,6 +214,7 @@ model contract_assets {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model contracts {
   id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   vendor_id       String            @db.Uuid
@@ -257,6 +271,7 @@ model discovery_jobs {
   max_hosts       Int                    @default(1024)
   options         Json                   @default("{}")
   created_by      String?                @db.Uuid
+  endpoints       String[]               @default([])
   users           users?                 @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   vrfs            vrfs?                  @relation(fields: [vrf_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   discovery_runs  discovery_runs[]
@@ -267,7 +282,7 @@ model discovery_jobs {
 model discovery_results {
   id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   run_id         String            @db.Uuid
-  ip             String            @db.Inet
+  ip             String?           @db.Inet
   outcome        discovery_outcome
   asset_id       String?           @db.Uuid
   matched_by     String?
@@ -275,10 +290,11 @@ model discovery_results {
   changes        Json              @default("{}")
   message        String?
   created_at     DateTime          @default(now()) @db.Timestamptz(6)
+  result_key     String
   assets         assets?           @relation(fields: [asset_id], references: [id], onUpdate: NoAction)
   discovery_runs discovery_runs    @relation(fields: [run_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([run_id, ip])
+  @@unique([run_id, result_key], map: "discovery_results_run_key")
   @@index([asset_id, created_at(sort: Desc)], map: "discovery_results_asset_idx")
 }
 
@@ -493,6 +509,7 @@ model rack_rows {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model racks {
   id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   row_id               String?                @db.Uuid
@@ -776,6 +793,9 @@ enum credential_kind {
   snmp_v3
   ssh_password
   ssh_key
+  vsphere
+  aws
+  azure
 }
 
 enum delivery_status {
@@ -806,6 +826,9 @@ enum discovery_protocol {
   wmi
   api
   nmap
+  vsphere
+  aws
+  azure
 }
 
 enum ip_status {

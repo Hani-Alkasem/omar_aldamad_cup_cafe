@@ -1,5 +1,5 @@
 import { Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
-import { PROTOCOL_KINDS, type CreateJobInput, type UpdateJobInput } from '@itam/shared';
+import { checkJobScope, isInventoryProtocol, PROTOCOL_KINDS, type CreateJobInput, type DiscoveryProtocol, type UpdateJobInput } from '@itam/shared';
 import { Prisma } from '@prisma/client';
 import parser from 'cron-parser';
 import { sqlStateOf, toDomainError } from '../../common/db-errors';
@@ -15,8 +15,9 @@ type Ctx = { user: AuthUser; requestId?: string };
 interface JobRow {
   id: string;
   name: string;
-  protocol: 'snmp' | 'ssh';
+  protocol: DiscoveryProtocol;
   targets: string[];
+  endpoints: string[];
   vrf_id: string | null;
   max_hosts: number;
   schedule_cron: string | null;
@@ -30,11 +31,17 @@ interface JobRow {
 }
 
 const JOB_SELECT = `
-  SELECT j.id, j.name, j.protocol, j.targets::text[] AS targets, j.vrf_id, j.max_hosts, j.schedule_cron, j.is_enabled,
+  SELECT j.id, j.name, j.protocol, j.targets::text[] AS targets, j.endpoints, j.vrf_id, j.max_hosts, j.schedule_cron, j.is_enabled,
          j.options, j.last_run_at, j.last_run_status, j.created_at, j.updated_at,
          COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name, 'kind', c.kind) ORDER BY jc.position)
                    FROM job_credentials jc JOIN credentials c ON c.id = jc.credential_id WHERE jc.job_id = j.id), '[]') AS credentials
   FROM discovery_jobs j`;
+
+/** Sweep jobs: canonical CIDRs within maxHosts. Inventory jobs: endpoints, trailing slashes dropped. */
+function scopeOf(protocol: DiscoveryProtocol, targets: string[], endpoints: string[], maxHosts: number) {
+  if (isInventoryProtocol(protocol)) return { cidrs: [] as string[], endpoints: [...new Set(endpoints.map((e) => e.replace(/\/$/, '')))] };
+  return { cidrs: normaliseTargets(targets, maxHosts).cidrs, endpoints: [] as string[] };
+}
 
 export function nextRuns(cron: string | null, count = 3, tz = process.env.DISCOVERY_TZ ?? 'UTC'): string[] {
   if (!cron) return [];
@@ -47,6 +54,7 @@ const jobDto = (j: JobRow) => ({
   name: j.name,
   protocol: j.protocol,
   targets: j.targets,
+  endpoints: j.endpoints,
   vrfId: j.vrf_id,
   maxHosts: j.max_hosts,
   scheduleCron: j.schedule_cron,
@@ -114,7 +122,7 @@ export class JobsService implements OnApplicationBootstrap {
     return jobDto(r);
   }
 
-  private async setCredentials(tx: Tx, jobId: string, protocol: 'snmp' | 'ssh', ids: string[]) {
+  private async setCredentials(tx: Tx, jobId: string, protocol: DiscoveryProtocol, ids: string[]) {
     if (new Set(ids).size !== ids.length) throw unprocessable('CREDENTIAL_DUPLICATE', 'A credential is listed twice');
     const creds = await tx.credentials.findMany({ where: { id: { in: ids } }, select: { id: true, kind: true, name: true } });
     for (const id of ids) {
@@ -135,13 +143,13 @@ export class JobsService implements OnApplicationBootstrap {
 
   async create(input: CreateJobInput, ctx: Ctx) {
     validateCron(input.scheduleCron);
-    const { cidrs } = normaliseTargets(input.targets, input.maxHosts);
+    const { cidrs, endpoints } = scopeOf(input.protocol, input.targets, input.endpoints, input.maxHosts);
     return this.prisma.$transaction(async (tx) => {
       let id: string;
       try {
         [{ id }] = await tx.$queryRaw<Array<{ id: string }>>`
-          INSERT INTO discovery_jobs (name, protocol, targets, vrf_id, max_hosts, schedule_cron, is_enabled, options, created_by)
-          VALUES (${input.name}, ${input.protocol}::discovery_protocol, ${cidrs}::cidr[], ${input.vrfId ?? null}::uuid, ${input.maxHosts},
+          INSERT INTO discovery_jobs (name, protocol, targets, endpoints, vrf_id, max_hosts, schedule_cron, is_enabled, options, created_by)
+          VALUES (${input.name}, ${input.protocol}::discovery_protocol, ${cidrs}::cidr[], ${endpoints}::text[], ${input.vrfId ?? null}::uuid, ${input.maxHosts},
                   ${input.scheduleCron ?? null}, ${input.isEnabled}, ${JSON.stringify(input.options)}::jsonb, ${ctx.user.id}::uuid)
           RETURNING id`;
         await this.setCredentials(tx, id, input.protocol, input.credentialIds);
@@ -164,7 +172,15 @@ export class JobsService implements OnApplicationBootstrap {
       const before = jobDto(await this.row(tx, id));
       const protocol = input.protocol ?? before.protocol;
       const maxHosts = input.maxHosts ?? before.maxHosts;
-      const targets = input.targets || input.maxHosts ? normaliseTargets(input.targets ?? before.targets, maxHosts).cidrs : null;
+      const scopeChanged = input.targets || input.endpoints || input.maxHosts || input.protocol;
+      if (scopeChanged) {
+        const issues: string[] = [];
+        checkJobScope({ protocol, targets: input.targets ?? (input.protocol && input.protocol !== before.protocol ? [] : before.targets), endpoints: input.endpoints ?? (input.protocol && input.protocol !== before.protocol ? [] : before.endpoints) }, { addIssue: (i: { message?: string }) => issues.push(i.message ?? 'invalid') } as never);
+        if (issues.length) throw unprocessable('JOB_SCOPE_INVALID', issues.join('; '));
+      }
+      const scope = scopeChanged ? scopeOf(protocol, input.targets ?? (isInventoryProtocol(protocol) ? [] : before.targets), input.endpoints ?? (isInventoryProtocol(protocol) ? before.endpoints : []), maxHosts) : null;
+      const targets = scope?.cidrs ?? null;
+      const endpoints = scope?.endpoints ?? null;
       try {
         // Credentials go first when the protocol changes: the trigger refuses a protocol switch over stale ones.
         if (input.protocol && input.protocol !== before.protocol) {
@@ -176,6 +192,7 @@ export class JobsService implements OnApplicationBootstrap {
             name = COALESCE(${input.name ?? null}, name),
             protocol = ${protocol}::discovery_protocol,
             targets = COALESCE(${targets}::cidr[], targets),
+            endpoints = COALESCE(${endpoints}::text[], endpoints),
             vrf_id = CASE WHEN ${input.vrfId !== undefined} THEN ${input.vrfId ?? null}::uuid ELSE vrf_id END,
             max_hosts = ${maxHosts},
             schedule_cron = CASE WHEN ${input.scheduleCron !== undefined} THEN ${input.scheduleCron ?? null} ELSE schedule_cron END,
@@ -279,14 +296,15 @@ export class JobsService implements OnApplicationBootstrap {
 
   async results(runId: string, outcome?: string) {
     await this.getRun(runId);
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; ip: string; outcome: string; asset_id: string | null; asset_name: string | null; matched_by: string | null; changes: unknown; message: string | null; facts: Record<string, unknown> }>>`
-      SELECT r.id, host(r.ip) AS ip, r.outcome, r.asset_id, a.name AS asset_name, r.matched_by, r.changes, r.message, r.facts
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; ip: string | null; result_key: string; outcome: string; asset_id: string | null; asset_name: string | null; matched_by: string | null; changes: unknown; message: string | null; facts: Record<string, unknown> }>>`
+      SELECT r.id, host(r.ip) AS ip, r.result_key, r.outcome, r.asset_id, a.name AS asset_name, r.matched_by, r.changes, r.message, r.facts
       FROM discovery_results r LEFT JOIN assets a ON a.id = r.asset_id
       WHERE r.run_id = ${runId}::uuid AND (${outcome ?? null}::discovery_outcome IS NULL OR r.outcome = ${outcome ?? null}::discovery_outcome)
-      ORDER BY r.ip`;
+      ORDER BY r.ip NULLS LAST, r.result_key`;
     return rows.map((r) => ({
       id: r.id,
       ip: r.ip,
+      key: r.result_key,
       outcome: r.outcome,
       asset: r.asset_id ? { id: r.asset_id, name: r.asset_name } : null,
       matchedBy: r.matched_by,

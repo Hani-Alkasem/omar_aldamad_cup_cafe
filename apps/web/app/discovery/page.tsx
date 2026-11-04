@@ -18,7 +18,7 @@ export default async function DiscoveryPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-white">Discovery</h1>
-        <p className="text-sm text-slate-400">Agentless SNMP and SSH sweeps. Results are matched to existing assets by system UUID, serial, MAC, then IP.</p>
+        <p className="text-sm text-slate-400">Agentless SNMP and SSH sweeps, plus vCenter, AWS and Azure inventories. Results are matched to existing assets by provider id, system UUID, serial, MAC, then IP.</p>
       </div>
 
       <Section title="Jobs">
@@ -33,10 +33,10 @@ export default async function DiscoveryPage() {
                   <div className="min-w-0 space-y-1">
                     <p className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-white">{j.name}</span>
-                      <Badge>{j.protocol.toUpperCase()}</Badge>
+                      <Badge>{{ vsphere: 'vSphere', aws: 'AWS', azure: 'Azure' }[j.protocol as string] ?? j.protocol.toUpperCase()}</Badge>
                       {!j.isEnabled && <Badge tone="muted">disabled</Badge>}
                     </p>
-                    <p className="break-all font-mono text-xs text-slate-400">{j.targets.join(', ')}</p>
+                    <p className="break-all font-mono text-xs text-slate-400">{(j.targets.length ? j.targets : j.endpoints).join(', ')}</p>
                     <p className="text-xs text-slate-400">
                       {j.scheduleCron ? <>Schedule <code>{j.scheduleCron}</code>{j.nextRuns[0] ? ` · next ${when(j.nextRuns[0])}` : ''}</> : 'Manual only'}
                       {' · '}

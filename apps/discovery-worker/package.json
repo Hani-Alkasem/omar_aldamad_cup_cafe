@@ -12,6 +12,7 @@
     "lab": "tsx scripts/lab.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-ec2": "3.699.0",
     "@itam/shared": "workspace:*",
     "bullmq": "5.34.6",
     "ipaddr.js": "2.2.0",
@@ -21,8 +22,9 @@
   "devDependencies": {
     "@types/node": "22.10.2",
     "@types/ssh2": "1.15.1",
+    "aws-sdk-client-mock": "4.1.0",
+    "tsx": "4.19.2",
     "typescript": "5.6.3",
-    "vitest": "2.1.8",
-    "tsx": "4.19.2"
+    "vitest": "2.1.8"
   }
 }

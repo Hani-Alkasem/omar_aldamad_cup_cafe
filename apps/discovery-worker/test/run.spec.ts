@@ -8,8 +8,9 @@ const spec = (extra: Partial<RunSpec> = {}): RunSpec => ({
   jobId: 'j1',
   protocol: 'ssh',
   targets: ['10.0.0.0/29'],
+  endpoints: [],
   maxHosts: 1024,
-  options: { timeoutMs: 100, concurrency: 4 },
+  options: { timeoutMs: 100, tlsInsecure: false, concurrency: 4 },
   leaseSeconds: 120,
   credentials: [
     { id: 'a', name: 'first', kind: 'ssh_password', username: 'u', secret: { password: 'a' } },
