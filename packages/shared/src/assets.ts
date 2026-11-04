@@ -19,6 +19,8 @@ const assetBase = z.object({
   type: AssetType,
   status: AssetStatus.default('active'),
   modelId: uuid.nullable().optional(),
+  /** Nameplate/measured draw in watts; feeds rack power budgets. */
+  powerDrawW: z.number().int().min(0).max(100_000).nullable().optional(),
   ...placement,
   customFields: z.record(z.unknown()).default({}),
 });

@@ -24,6 +24,25 @@ model asset_components {
   @@index([asset_id])
 }
 
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model asset_financials {
+  asset_id            String              @id @db.Uuid
+  purchase_order_id   String?             @db.Uuid
+  purchase_date       DateTime?           @db.Date
+  in_service_date     DateTime?           @db.Date
+  purchase_cost       Decimal?            @db.Decimal(14, 2)
+  currency            String              @default("USD") @db.Char(3)
+  depreciation_method depreciation_method @default(straight_line)
+  useful_life_months  Int?
+  salvage_value       Decimal             @default(0) @db.Decimal(14, 2)
+  disposal_date       DateTime?           @db.Date
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+  assets              assets              @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  purchase_orders     purchase_orders?    @relation(fields: [purchase_order_id], references: [id], onUpdate: NoAction)
+
+  @@index([purchase_order_id], map: "asset_financials_po_idx")
+}
+
 /// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
 model asset_rack_occupancy {
   asset_id String                   @db.Uuid
@@ -39,33 +58,37 @@ model asset_rack_occupancy {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model assets {
-  id                                                        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                                                        String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                                                      String
   asset_tag                                                 String?
   serial_number                                             String?
   type                                                      asset_type
-  status                                                    asset_status           @default(active)
-  model_id                                                  String?                @db.Uuid
-  parent_id                                                 String?                @db.Uuid
-  rack_id                                                   String?                @db.Uuid
-  start_u                                                   Int?                   @db.SmallInt
-  size_u                                                    Int                    @default(1) @db.SmallInt
+  status                                                    asset_status            @default(active)
+  model_id                                                  String?                 @db.Uuid
+  parent_id                                                 String?                 @db.Uuid
+  rack_id                                                   String?                 @db.Uuid
+  start_u                                                   Int?                    @db.SmallInt
+  size_u                                                    Int                     @default(1) @db.SmallInt
   face                                                      rack_face?
-  depth                                                     mount_depth            @default(full)
+  depth                                                     mount_depth             @default(full)
   power_draw_w                                              Int?
-  custom_fields                                             Json                   @default("{}")
-  created_at                                                DateTime               @default(now()) @db.Timestamptz(6)
-  updated_at                                                DateTime               @default(now()) @db.Timestamptz(6)
+  custom_fields                                             Json                    @default("{}")
+  created_at                                                DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                                                DateTime                @default(now()) @db.Timestamptz(6)
   asset_components                                          asset_components[]
+  asset_financials                                          asset_financials?
   asset_rack_occupancy                                      asset_rack_occupancy[]
-  hardware_models                                           hardware_models?       @relation(fields: [model_id], references: [id], onUpdate: NoAction)
-  assets                                                    assets?                @relation("assetsToassets", fields: [parent_id], references: [id], onUpdate: NoAction)
-  other_assets                                              assets[]               @relation("assetsToassets")
-  racks                                                     racks?                 @relation(fields: [rack_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  ci_relationships_ci_relationships_source_asset_idToassets ci_relationships[]     @relation("ci_relationships_source_asset_idToassets")
-  ci_relationships_ci_relationships_target_asset_idToassets ci_relationships[]     @relation("ci_relationships_target_asset_idToassets")
+  hardware_models                                           hardware_models?        @relation(fields: [model_id], references: [id], onUpdate: NoAction)
+  assets                                                    assets?                 @relation("assetsToassets", fields: [parent_id], references: [id], onUpdate: NoAction)
+  other_assets                                              assets[]                @relation("assetsToassets")
+  racks                                                     racks?                  @relation(fields: [rack_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  ci_relationships_ci_relationships_source_asset_idToassets ci_relationships[]      @relation("ci_relationships_source_asset_idToassets")
+  ci_relationships_ci_relationships_target_asset_idToassets ci_relationships[]      @relation("ci_relationships_target_asset_idToassets")
+  contract_assets                                           contract_assets[]
   ip_addresses                                              ip_addresses[]
+  maintenance_schedules                                     maintenance_schedules[]
   network_ports                                             network_ports[]
+  power_ports                                               power_ports[]
 
   @@index([custom_fields(ops: JsonbPathOps)], map: "assets_custom_fields_gin", type: Gin)
   @@index([model_id])
@@ -113,6 +136,7 @@ model cables {
   length_m                                      Decimal?      @db.Decimal(6, 2)
   circuit_id                                    String?
   created_at                                    DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at                                    DateTime      @default(now()) @db.Timestamptz(6)
   network_ports_cables_a_port_idTonetwork_ports network_ports @relation("cables_a_port_idTonetwork_ports", fields: [a_port_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   network_ports_cables_b_port_idTonetwork_ports network_ports @relation("cables_b_port_idTonetwork_ports", fields: [b_port_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
@@ -130,6 +154,38 @@ model ci_relationships {
 
   @@unique([source_asset_id, target_asset_id, relationship_type])
   @@index([target_asset_id, relationship_type], map: "ci_relationships_target_idx")
+}
+
+model contract_assets {
+  contract_id String    @db.Uuid
+  asset_id    String    @db.Uuid
+  assets      assets    @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contracts   contracts @relation(fields: [contract_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([contract_id, asset_id])
+  @@index([asset_id], map: "contract_assets_asset_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model contracts {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendor_id       String            @db.Uuid
+  contract_type   contract_type
+  contract_number String
+  start_date      DateTime          @db.Date
+  end_date        DateTime          @db.Date
+  cost            Decimal?          @db.Decimal(14, 2)
+  currency        String            @default("USD") @db.Char(3)
+  auto_renew      Boolean           @default(false)
+  notice_days     Int               @default(30)
+  notes           String?
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  contract_assets contract_assets[]
+  vendors         vendors           @relation(fields: [vendor_id], references: [id], onUpdate: NoAction)
+
+  @@unique([vendor_id, contract_number])
+  @@index([end_date])
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -208,6 +264,24 @@ model ip_addresses {
   @@index([subnet_id, ip], map: "ip_addresses_subnet_ip_idx")
 }
 
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model maintenance_schedules {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asset_id      String    @db.Uuid
+  title         String
+  interval_days Int
+  first_due_on  DateTime  @db.Date
+  last_done_on  DateTime? @db.Date
+  next_due_on   DateTime? @default(dbgenerated("COALESCE((last_done_on + interval_days), first_due_on)")) @db.Date
+  notes         String?
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  assets        assets    @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([asset_id], map: "maintenance_asset_idx")
+  @@index([next_due_on], map: "maintenance_next_due_idx")
+}
+
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model manufacturers {
   id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -228,14 +302,65 @@ model network_ports {
   is_uplink                              Boolean                 @default(false)
   created_at                             DateTime                @default(now()) @db.Timestamptz(6)
   updated_at                             DateTime                @default(now()) @db.Timestamptz(6)
+  kind                                   port_kind               @default(ethernet)
+  position                               Int?                    @db.SmallInt
+  pass_through_port_id                   String?                 @db.Uuid
   cables_cables_a_port_idTonetwork_ports cables?                 @relation("cables_a_port_idTonetwork_ports")
   cables_cables_b_port_idTonetwork_ports cables?                 @relation("cables_b_port_idTonetwork_ports")
   ip_addresses                           ip_addresses[]
   assets                                 assets                  @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  network_ports                          network_ports?          @relation("network_portsTonetwork_ports", fields: [pass_through_port_id], references: [id], onUpdate: NoAction)
+  other_network_ports                    network_ports[]         @relation("network_portsTonetwork_ports")
   vlans                                  vlans?                  @relation(fields: [vlan_id], references: [id], onUpdate: NoAction)
 
   @@unique([asset_id, port_name])
   @@index([vlan_id], map: "network_ports_vlan_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model power_connections {
+  id                                                        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_port_id                                            String      @unique(map: "power_connections_outlet_key") @db.Uuid
+  inlet_port_id                                             String      @unique(map: "power_connections_inlet_key") @db.Uuid
+  created_at                                                DateTime    @default(now()) @db.Timestamptz(6)
+  power_ports_power_connections_inlet_port_idTopower_ports  power_ports @relation("power_connections_inlet_port_idTopower_ports", fields: [inlet_port_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  power_ports_power_connections_outlet_port_idTopower_ports power_ports @relation("power_connections_outlet_port_idTopower_ports", fields: [outlet_port_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model power_ports {
+  id                                                              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asset_id                                                        String             @db.Uuid
+  name                                                            String
+  kind                                                            power_port_kind
+  feed                                                            power_feed?
+  voltage                                                         Int                @default(230) @db.SmallInt
+  max_amps                                                        Decimal?           @db.Decimal(6, 2)
+  created_at                                                      DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at                                                      DateTime           @default(now()) @db.Timestamptz(6)
+  power_connections_power_connections_inlet_port_idTopower_ports  power_connections? @relation("power_connections_inlet_port_idTopower_ports")
+  power_connections_power_connections_outlet_port_idTopower_ports power_connections? @relation("power_connections_outlet_port_idTopower_ports")
+  assets                                                          assets             @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([asset_id, name])
+  @@index([asset_id, kind], map: "power_ports_asset_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model purchase_orders {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  po_number        String             @unique
+  vendor_id        String             @db.Uuid
+  order_date       DateTime           @db.Date
+  total_amount     Decimal?           @db.Decimal(14, 2)
+  currency         String             @default("USD") @db.Char(3)
+  notes            String?
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  asset_financials asset_financials[]
+  vendors          vendors            @relation(fields: [vendor_id], references: [id], onUpdate: NoAction)
+
+  @@index([vendor_id], map: "purchase_orders_vendor_idx")
 }
 
 model rack_rows {
@@ -331,6 +456,21 @@ model users {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model vendors {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  website         String?
+  support_email   String?
+  support_phone   String?
+  notes           String?
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  contracts       contracts[]
+  purchase_orders purchase_orders[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model vlans {
   id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   site_id       String?         @db.Uuid
@@ -397,6 +537,20 @@ enum cable_media {
   power
 }
 
+enum contract_type {
+  warranty
+  support
+  lease
+  maintenance
+  license
+}
+
+enum depreciation_method {
+  none
+  straight_line
+  declining_balance
+}
+
 enum discovery_protocol {
   snmp
   ssh
@@ -425,6 +579,27 @@ enum mount_depth {
   full
   half
   zero_u
+}
+
+enum port_kind {
+  ethernet
+  sfp
+  qsfp
+  console
+  management
+  patch_front
+  patch_rear
+}
+
+enum power_feed {
+  A
+  B
+  C
+}
+
+enum power_port_kind {
+  inlet
+  outlet
 }
 
 enum rack_face {

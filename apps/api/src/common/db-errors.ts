@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { DomainError } from './errors';
 
 /**
- * Postgres SQLSTATEs (standard + the KBxxx codes raised by triggers in 0001_init) → API errors.
+ * Postgres SQLSTATEs (standard + the KBxxx codes raised by triggers in the migrations) → API errors.
  * This is the backstop for races the service-level pre-checks cannot see.
  */
 const SQLSTATE_MAP: Record<string, { status: HttpStatus; code: string }> = {
@@ -18,6 +18,9 @@ const SQLSTATE_MAP: Record<string, { status: HttpStatus; code: string }> = {
   KB004: { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'IP_OUTSIDE_SUBNET' },
   KB005: { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'IP_RESERVED_ADDRESS' },
   KB006: { status: HttpStatus.FORBIDDEN, code: 'AUDIT_IMMUTABLE' },
+  KB010: { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'POWER_CONNECTION_INVALID' },
+  KB011: { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'PASS_THROUGH_INVALID' },
+  KB012: { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'FINANCIALS_INVALID' },
 };
 
 const PRISMA_CODE_MAP: Record<string, { status: HttpStatus; code: string }> = {

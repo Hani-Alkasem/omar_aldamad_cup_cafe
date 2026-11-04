@@ -21,6 +21,12 @@ export class AssetsController {
     return this.assets.list(q);
   }
 
+  @Get('lookup')
+  @ApiOperation({ summary: 'Resolve an asset by exact asset tag or serial number (QR label scans)' })
+  lookup(@Query('tag') tag?: string) {
+    return this.assets.lookup(tag ?? '');
+  }
+
   @Get(':id')
   get(@Param('id', UuidPipe) id: string) {
     return this.assets.get(id);

@@ -58,6 +58,7 @@ function toRow(input: Partial<CreateAssetInput>): Partial<AssetWrite> {
   if (input.type !== undefined) row.type = input.type;
   if (input.status !== undefined) row.status = input.status;
   if (input.modelId !== undefined) row.model_id = input.modelId;
+  if (input.powerDrawW !== undefined) row.power_draw_w = input.powerDrawW;
   if (input.rackId !== undefined) row.rack_id = input.rackId;
   if (input.startU !== undefined) row.start_u = input.startU;
   if (input.sizeU !== undefined) row.size_u = input.sizeU;
@@ -101,6 +102,18 @@ export class AssetsService {
       this.prisma.assets.count({ where }),
     ]);
     return { items: items.map(toAssetDto), total, limit: q.limit, offset: q.offset };
+  }
+
+  /** Exact match on asset tag (case-insensitive) or serial number; used by QR label scans. */
+  async lookup(tag: string): Promise<AssetDto> {
+    const key = tag.trim();
+    if (!key || key.length > 128) throw notFound('Asset', key || '(empty)');
+    const hit = await this.prisma.assets.findFirst({
+      where: { OR: [{ asset_tag: { equals: key, mode: 'insensitive' } }, { serial_number: key }] },
+      select: { id: true },
+    });
+    if (!hit) throw notFound('Asset', key);
+    return this.get(hit.id);
   }
 
   async get(id: string): Promise<AssetDto> {
